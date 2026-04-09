@@ -16,6 +16,7 @@ export default function Game() {
   const [usedKeys, setUsedKeys] = useState({});
   const [myGuesses, setMyGuesses] = useState([]); // { word, statuses }[]
   const [feedback, setFeedback] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(null);
   const initializedRoundKeyRef = useRef('');
 
   useEffect(() => {
@@ -35,6 +36,23 @@ export default function Game() {
       initializedRoundKeyRef.current = roundKey;
     }
   }, [room, roundState, navigate]);
+
+  useEffect(() => {
+    if (!room || roundState !== 'IN_ROUND' || !room.roundEndsAt) {
+      setSecondsLeft(null);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((room.roundEndsAt - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+    };
+
+    tick();
+    const timerId = setInterval(tick, 250);
+
+    return () => clearInterval(timerId);
+  }, [room?.roundEndsAt, roundState, room]);
 
   if (!room) return null;
 
@@ -105,6 +123,9 @@ export default function Game() {
             </p>
           )}
           <h2>Round {room.currentRound} / {room.settings.numRounds}</h2>
+          <p className="timer-pill">
+            {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Timer paused'}
+          </p>
           {roundState === 'ROUND_ENDED' && (
             <div className="status-banner">
               Round finished. Next round starts in a few seconds. Word was <strong>{lastTargetWord}</strong>

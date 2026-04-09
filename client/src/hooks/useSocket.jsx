@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import useGameStore from '../store/useGameStore';
+import { clearSession, getSession } from '../utils/session';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
@@ -17,6 +18,21 @@ export function useSocket() {
 
     function onConnect() {
       setIsConnected(true);
+
+      const session = getSession();
+      if (session?.roomId && session?.playerKey) {
+        socket.emit('resume_session', session, (response) => {
+          if (response?.error) {
+            clearSession();
+            return;
+          }
+
+          if (response?.room) {
+            setRoom(response.room);
+            setRoundState(response.room.state, '');
+          }
+        });
+      }
     }
 
     function onDisconnect() {

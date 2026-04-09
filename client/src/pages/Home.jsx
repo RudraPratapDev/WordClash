@@ -4,11 +4,12 @@ import { socket } from '../hooks/useSocket';
 import useGameStore from '../store/useGameStore';
 import { Sparkles, Zap } from 'lucide-react';
 import { getSuggestedUsername } from '../utils/usernameSuggestions';
+import { getPlayerKey, saveSession } from '../utils/session';
 
 const PRESETS = {
-  quick: { maxPlayers: 4, wordLength: 4, numRounds: 3, timeLimit: 45 },
-  standard: { maxPlayers: 4, wordLength: 5, numRounds: 4, timeLimit: 60 },
-  marathon: { maxPlayers: 6, wordLength: 6, numRounds: 6, timeLimit: 90 },
+  quick: { maxPlayers: 4, wordLength: 4, numRounds: 3, timeLimit: 120 },
+  standard: { maxPlayers: 4, wordLength: 5, numRounds: 4, timeLimit: 120 },
+  marathon: { maxPlayers: 6, wordLength: 6, numRounds: 6, timeLimit: 180 },
 };
 
 export default function Home() {
@@ -33,6 +34,11 @@ export default function Home() {
 
   const updateSetting = (key, value) => {
     setPreset('custom');
+    if (key === 'timeLimit') {
+      const clamped = Math.min(Math.max(Number(value || 120), 15), 600);
+      setSettings(prev => ({ ...prev, [key]: clamped }));
+      return;
+    }
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
@@ -49,12 +55,14 @@ export default function Home() {
 
     setFormError('');
     setPlayerName(resolvedName);
+    const playerKey = getPlayerKey();
 
-    socket.emit('create_room', { playerName: resolvedName, settings }, (room) => {
+    socket.emit('create_room', { playerName: resolvedName, settings, playerKey }, (room) => {
       if (!room || room.error) {
         setFormError(room?.error || 'Unable to create room right now.');
         return;
       }
+      saveSession({ roomId: room.id, playerName: resolvedName, playerKey });
       setRoom(room);
       navigate(`/room/${room.id}`);
     });
@@ -68,12 +76,14 @@ export default function Home() {
 
     setFormError('');
     setPlayerName(resolvedName);
+    const playerKey = getPlayerKey();
     
-    socket.emit('join_room', { roomId: joinCode.toUpperCase(), playerName: resolvedName }, (response) => {
+    socket.emit('join_room', { roomId: joinCode.toUpperCase(), playerName: resolvedName, playerKey }, (response) => {
       if (response.error) {
         setFormError(response.error);
         return;
       }
+      saveSession({ roomId: response.room.id, playerName: resolvedName, playerKey });
       setRoom(response.room);
       navigate(`/room/${response.room.id}`);
     });
@@ -148,9 +158,15 @@ export default function Home() {
 
                 <label className="setting-field">
                   <span className="label">Seconds / round</span>
-                  <select className="input" value={settings.timeLimit} onChange={(e) => updateSetting('timeLimit', Number(e.target.value))}>
-                    {[30, 45, 60, 75, 90, 120].map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
+                  <input
+                    type="number"
+                    className="input"
+                    min={15}
+                    max={600}
+                    step={5}
+                    value={settings.timeLimit}
+                    onChange={(e) => updateSetting('timeLimit', Number(e.target.value))}
+                  />
                 </label>
               </div>
 
