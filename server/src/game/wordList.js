@@ -17,6 +17,7 @@ const insightCache = new Map();
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const INSIGHT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const VALIDATION_MAX_WAIT_MS = Number(process.env.WORD_VALIDATION_MAX_WAIT_MS || 1800);
+const MAX_CACHE_SIZE = Number(process.env.WORD_CACHE_MAX_SIZE || 3000);
 
 function getWordPool(length) {
   if (length === 4) return TARGET_WORDS_4;
@@ -54,6 +55,9 @@ function readCache(word) {
 }
 
 function writeCache(word, value) {
+  if (!validityCache.has(word) && validityCache.size >= MAX_CACHE_SIZE) {
+    validityCache.delete(validityCache.keys().next().value);
+  }
   validityCache.set(word, { value, ts: Date.now() });
 }
 
@@ -70,7 +74,14 @@ function readInsightCache(word) {
 }
 
 function writeInsightCache(word, value) {
+  if (!insightCache.has(word) && insightCache.size >= MAX_CACHE_SIZE) {
+    insightCache.delete(insightCache.keys().next().value);
+  }
   insightCache.set(word, { value, ts: Date.now() });
+}
+
+function isServiceErrorStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
 async function fetchWithTimeout(url, timeoutMs = Number(process.env.WORD_VALIDATION_TIMEOUT_MS || 1500)) {
@@ -87,24 +98,32 @@ async function fetchWithTimeout(url, timeoutMs = Number(process.env.WORD_VALIDAT
 async function validateFreeDictionaryApi(word) {
   try {
     const response = await fetchWithTimeout(`https://freedictionaryapi.com/api/v1/entries/en/${word.toLowerCase()}`);
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (response.status === 404) return false;
+      if (isServiceErrorStatus(response.status)) throw new Error(`freedictionaryapi status ${response.status}`);
+      return false;
+    }
 
     const data = await response.json();
     return Boolean(data && Array.isArray(data.entries) && data.entries.length > 0);
-  } catch {
-    return false;
+  } catch (error) {
+    throw error;
   }
 }
 
 async function validateDictionaryApiDev(word) {
   try {
     const response = await fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (response.status === 404) return false;
+      if (isServiceErrorStatus(response.status)) throw new Error(`dictionaryapi.dev status ${response.status}`);
+      return false;
+    }
 
     const data = await response.json();
     return Array.isArray(data) && data.some(entry => entry && typeof entry.word === 'string');
-  } catch {
-    return false;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -225,26 +244,33 @@ async function getWordInsight(word) {
 async function validateDatamuse(word) {
   try {
     const response = await fetchWithTimeout(`https://api.datamuse.com/words?sp=${word.toLowerCase()}&max=1000`);
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (isServiceErrorStatus(response.status)) throw new Error(`datamuse status ${response.status}`);
+      return false;
+    }
 
     const data = await response.json();
     if (!Array.isArray(data)) return false;
 
     return data.some(entry => (entry.word || '').toUpperCase() === word);
-  } catch {
-    return false;
+  } catch (error) {
+    throw error;
   }
 }
 
 async function validateWiktionary(word) {
   try {
     const response = await fetchWithTimeout(`https://en.wiktionary.org/api/rest_v1/page/definition/${word.toLowerCase()}`);
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (response.status === 404) return false;
+      if (isServiceErrorStatus(response.status)) throw new Error(`wiktionary status ${response.status}`);
+      return false;
+    }
 
     const data = await response.json();
     return Boolean(data && Array.isArray(data.en) && data.en.length > 0);
-  } catch {
-    return false;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -258,6 +284,7 @@ function validateAgainstApisWithEarlySuccess(word) {
 
   return new Promise((resolve) => {
     let pending = validators.length;
+    let anyResponded = false;
     let settled = false;
 
     const finish = (value) => {
@@ -269,6 +296,7 @@ function validateAgainstApisWithEarlySuccess(word) {
     for (const validate of validators) {
       validate(word)
         .then((ok) => {
+          anyResponded = true;
           if (ok) {
             finish(true);
           }
@@ -277,12 +305,13 @@ function validateAgainstApisWithEarlySuccess(word) {
         .finally(() => {
           pending -= 1;
           if (pending === 0) {
-            finish(false);
+            // Fail open when every upstream validator failed operationally.
+            finish(anyResponded ? false : true);
           }
         });
     }
 
-    setTimeout(() => finish(false), VALIDATION_MAX_WAIT_MS);
+    setTimeout(() => finish(anyResponded ? false : true), VALIDATION_MAX_WAIT_MS);
   });
 }
 
