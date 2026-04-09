@@ -4,7 +4,7 @@ import { socket } from '../hooks/useSocket';
 import useGameStore from '../store/useGameStore';
 import { Sparkles, Zap } from 'lucide-react';
 import { getSuggestedUsername } from '../utils/usernameSuggestions';
-import { getPlayerKey, saveSession } from '../utils/session';
+import { clearSession, getPlayerKey, saveSession } from '../utils/session';
 
 const PRESETS = {
   quick: { maxPlayers: 4, wordLength: 4, numRounds: 3, timeLimit: 120 },
@@ -40,11 +40,45 @@ export default function Home() {
   }, [roomIdFromPath, location.search]);
 
   useEffect(() => {
-    if (roomId) {
-      socket.emit('leave_room', {});
-    }
-    clearRoom();
+    let cancelled = false;
+
+    clearSession();
     clearToasts();
+
+    const finalizeLeave = () => {
+      if (cancelled) return;
+      clearRoom();
+    };
+
+    if (!roomId) {
+      finalizeLeave();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    let done = false;
+    const timeoutId = setTimeout(() => {
+      if (done) return;
+      done = true;
+      finalizeLeave();
+    }, 900);
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.emit('leave_room', {}, () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeoutId);
+      finalizeLeave();
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const regenerateSuggestion = () => {

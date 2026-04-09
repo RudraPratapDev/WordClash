@@ -6,7 +6,8 @@ import { Users, Clock, Hash, Dices, Copy } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Lobby() {
-  const { room, roundState } = useGameStore();
+  const room = useGameStore((state) => state.room);
+  const roundState = useGameStore((state) => state.roundState);
   const [copyStatus, setCopyStatus] = useState('');
   const [copyInviteStatus, setCopyInviteStatus] = useState('');
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function Lobby() {
   useEffect(() => {
     if (!room) {
       navigate('/');
-    } else if (roundState === 'IN_ROUND' || roundState === 'ROUND_ENDED') {
+    } else if (roundState === 'IN_ROUND') {
       navigate('/game');
     }
   }, [room, roundState, navigate]);

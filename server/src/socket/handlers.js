@@ -63,7 +63,7 @@ function prefetchRoundWordInsight(roomId) {
 }
 
 function emitPresenceEvent(io, roomId, event) {
-  io.to(roomId).emit('presence_event', event);
+  io.to(roomId).emit('presence_event', { ...event, roomId });
 }
 
 function findPublicIdBySocket(room, socketId) {
@@ -190,6 +190,7 @@ function setupSockets(io) {
       if (roomId) {
         io.to(roomId).emit('chat_message', {
           id: Date.now().toString(),
+          roomId,
           sender: socket.data.playerName,
           text,
           timestamp: new Date().toISOString()

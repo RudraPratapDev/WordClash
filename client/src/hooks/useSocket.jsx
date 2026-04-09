@@ -24,6 +24,12 @@ export function useSocket() {
     function onConnect() {
       setIsConnected(true);
 
+      const path = (window.location.pathname || '').toLowerCase();
+      const shouldResume = path.startsWith('/room/') || path === '/game';
+      if (!shouldResume) {
+        return;
+      }
+
       const session = getSession();
       if (session?.roomId && session?.playerKey) {
         socket.emit('resume_session', session, (response) => {
@@ -77,10 +83,9 @@ export function useSocket() {
     }
 
     function onPresenceEvent(event) {
-      const path = window.location.pathname;
-      if (!path.startsWith('/room/') && path !== '/game') return;
-
       const state = useGameStore.getState();
+      if (!event?.roomId || !state.roomId || event.roomId !== state.roomId) return;
+
       const currentRoom = state.room;
       if (!currentRoom || !event) return;
 
@@ -110,6 +115,8 @@ export function useSocket() {
     }
 
     function onChatMessage(msg) {
+      const state = useGameStore.getState();
+      if (!msg?.roomId || !state.roomId || msg.roomId !== state.roomId) return;
       addChatMessage(msg);
     }
 
