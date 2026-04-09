@@ -1,4 +1,6 @@
-export default function Board({ guesses, currentGuess, wordLength, isActive }) {
+import { memo } from 'react';
+
+function Board({ guesses, currentGuess, wordLength, isActive, isSubmittingGuess = false, invalidPulseKey = 0 }) {
   // Pad with empty rows to make 6 total rows
   const maxGuesses = 6;
   const rows = [];
@@ -18,8 +20,16 @@ export default function Board({ guesses, currentGuess, wordLength, isActive }) {
     } else if (i === guesses.length && (isActive || currentGuess.length > 0)) {
       // Keep the pending guess visible while validation is in progress.
       const currentLetters = currentGuess.split('');
+      const rowClasses = [
+        'board-row',
+        isSubmittingGuess ? 'is-submitting' : '',
+        invalidPulseKey > 0 ? 'is-invalid' : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+
       rows.push(
-        <div key={i} className="board-row">
+        <div key={`${i}_${invalidPulseKey}`} className={rowClasses}>
           {Array.from({ length: wordLength }).map((_, j) => (
             <div key={j} className={`tile ${currentLetters[j] ? 'filled' : ''}`}>
               {currentLetters[j] || ''}
@@ -45,3 +55,5 @@ export default function Board({ guesses, currentGuess, wordLength, isActive }) {
     </div>
   );
 }
+
+export default memo(Board);

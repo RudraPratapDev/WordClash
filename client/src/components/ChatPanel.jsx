@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import useGameStore from '../store/useGameStore';
 import { socket } from '../hooks/useSocket';
 import { Send } from 'lucide-react';
 
-export default function ChatPanel() {
-  const { chat } = useGameStore();
+function ChatPanel() {
+  const chat = useGameStore((state) => state.chat);
   const [text, setText] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const endRef = useRef(null);
@@ -50,3 +50,5 @@ export default function ChatPanel() {
     </div>
   );
 }
+
+export default memo(ChatPanel);

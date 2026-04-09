@@ -11,7 +11,8 @@ import './index.css';
 
 function App() {
   const { isConnected } = useSocket();
-  const { isDarkMode, toggleTheme } = useGameStore();
+  const isDarkMode = useGameStore((state) => state.isDarkMode);
+  const toggleTheme = useGameStore((state) => state.toggleTheme);
 
   return (
     <BrowserRouter>

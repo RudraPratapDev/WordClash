@@ -12,14 +12,14 @@ export default function AboutDeveloper() {
         <p className="label">Panda Den</p>
         <h2 className="hero-title">Lazy Panda’s Build Lab</h2>
         <p className="hero-subtitle">
-          A tiny corner of the internet where full-stack systems, playful UX, and AI experiments collide.
-          The mission is simple: build useful things that feel alive.
+          A cozy build corner where ideas turn into playful apps, curious experiments, and polished experiences.
+          The mission is simple: make useful things that feel fun to use.
         </p>
 
         <div className="about-grid">
           <article className="about-tile">
-            <h3>Core Skill Combo</h3>
-            <p>Realtime architecture + thoughtful interface design + practical AI.</p>
+            <h3>How I Build The Fun Stuff</h3>
+            <p>Quick prototypes, clean system thinking, and tiny delight details that make products feel alive.</p>
           </article>
 
           <article className="about-tile">

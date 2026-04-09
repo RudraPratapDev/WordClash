@@ -11,9 +11,11 @@ import { getPlayerBadge } from '../utils/playerIdentity';
 
 export default function Game() {
   const room = useGameStore((state) => state.room);
+  const matchMode = useGameStore((state) => state.matchMode);
   const roundState = useGameStore((state) => state.roundState);
   const lastTargetWord = useGameStore((state) => state.lastTargetWord);
   const lastWordInfo = useGameStore((state) => state.lastWordInfo);
+  const setRoundState = useGameStore((state) => state.setRoundState);
   const navigate = useNavigate();
 
   const [currentGuess, setCurrentGuess] = useState('');
@@ -22,6 +24,7 @@ export default function Game() {
   const [feedback, setFeedback] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(null);
   const [isSubmittingGuess, setIsSubmittingGuess] = useState(false);
+  const [invalidPulseKey, setInvalidPulseKey] = useState(0);
   const [isWordModalOpen, setIsWordModalOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try {
@@ -57,6 +60,7 @@ export default function Game() {
       setUsedKeys({});
       setMyGuesses([]);
       setFeedback('');
+      setInvalidPulseKey(0);
       setIsSubmittingGuess(false);
       initializedRoundKeyRef.current = roundKey;
     }
@@ -118,6 +122,7 @@ export default function Game() {
   const iAmWinner = roundState === 'GAME_OVER' && me && me.score === winnerScore;
   const isUrgent = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 10;
   const isCritical = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 5;
+  const isSoloMode = matchMode === 'solo';
 
   const loserLines = [
     'You got roasted by the dictionary this round.',
@@ -174,13 +179,24 @@ export default function Game() {
       }
 
       setIsSubmittingGuess(true);
-      setFeedback('Checking word...');
+      setFeedback('');
 
       // Send guess to server for validation
       socket.emit('submit_guess', { guess: currentGuess }, (response) => {
         setIsSubmittingGuess(false);
 
         if (response.error) {
+          if (response.error === 'Word does not exist') {
+            setInvalidPulseKey((prev) => prev + 1);
+            setFeedback('');
+            return;
+          }
+
+          if (response.error === 'Invalid word length') {
+            setFeedback(`Word must be ${wordLength} letters`);
+            return;
+          }
+
           setFeedback(response.error);
           return;
         }
@@ -208,27 +224,34 @@ export default function Game() {
     }
   };
 
+  const handlePlayAgain = () => {
+    if (!room || socket.id !== room.ownerId) return;
+    setRoundState('IN_ROUND');
+    socket.emit('start_game');
+  };
+
   return (
     <section className={`game-layout ${isSoloMatch ? 'solo-match' : ''}`}>
-      <aside className={`panel side-card ${opponentCount === 0 ? 'solo' : 'has-opponents'} ${opponentCountClass}`}>
-        <h3 className="side-title">Opponents</h3>
-        <div className="side-hud">
-          <p className={`timer-pill compact ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
-            {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
-          </p>
-          <button type="button" className="ghost-btn" onClick={() => setSoundEnabled(prev => !prev)}>
-            SFX: {soundEnabled ? 'On' : 'Off'}
-          </button>
-        </div>
-        {opponents.length === 0 && <p className="empty-note">You are currently playing solo.</p>}
-        {opponents.length > 0 && (
-          <div className={`opponents-grid ${opponentCountClass}`}>
-            {opponents.map(p => (
-              <OpponentPanel key={p.publicId || p.id} player={p} wordLength={wordLength} />
-            ))}
+      {!isSoloMatch && (
+        <aside className={`panel side-card has-opponents ${opponentCountClass}`}>
+          <h3 className="side-title">Opponents</h3>
+          <div className="side-hud">
+            <p className={`timer-pill compact ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
+              {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
+            </p>
+            <button type="button" className="ghost-btn" onClick={() => setSoundEnabled(prev => !prev)}>
+              SFX: {soundEnabled ? 'On' : 'Off'}
+            </button>
           </div>
-        )}
-      </aside>
+          {opponents.length > 0 && (
+            <div className={`opponents-grid ${opponentCountClass}`}>
+              {opponents.map(p => (
+                <OpponentPanel key={p.publicId || p.id} player={p} wordLength={wordLength} />
+              ))}
+            </div>
+          )}
+        </aside>
+      )}
 
       <div className="center-stage">
         <div className="round-banner">
@@ -239,6 +262,16 @@ export default function Game() {
             </p>
           )}
           <h2>Round {room.currentRound} / {room.settings.numRounds}</h2>
+          {isSoloMatch && (
+            <div className="solo-head-tools">
+              <p className={`timer-pill ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
+                {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
+              </p>
+              <button type="button" className="ghost-btn" onClick={() => setSoundEnabled(prev => !prev)}>
+                SFX: {soundEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+          )}
           {roundState === 'ROUND_ENDED' && (
             <div className="status-banner">
               Round finished. Next round starts in a few seconds.
@@ -246,7 +279,14 @@ export default function Game() {
           )}
         </div>
 
-        <Board guesses={myGuesses} currentGuess={currentGuess} wordLength={wordLength} isActive={isActive} />
+        <Board
+          guesses={myGuesses}
+          currentGuess={currentGuess}
+          wordLength={wordLength}
+          isActive={isActive}
+          isSubmittingGuess={isSubmittingGuess}
+          invalidPulseKey={invalidPulseKey}
+        />
 
         {feedback && <p className="feedback-text">{feedback}</p>}
 
@@ -274,10 +314,19 @@ export default function Game() {
             <p>{endLine}</p>
             <p>Final word was <strong>{lastTargetWord}</strong></p>
             <div className="end-actions">
-              <button className="btn btn-secondary" onClick={() => navigate(`/room/${room.id}`)}>
-                Back To Lobby
-              </button>
-              <button className="btn" onClick={() => navigate('/')}>Back Home</button>
+              {isSoloMode ? (
+                <>
+                  <button className="btn" onClick={handlePlayAgain}>Play Again</button>
+                  <button className="btn btn-secondary" onClick={() => navigate('/')}>Back Home</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-secondary" onClick={() => navigate(`/room/${room.id}`)}>
+                    Back To Lobby
+                  </button>
+                  <button className="btn" onClick={() => navigate('/')}>Back Home</button>
+                </>
+              )}
             </div>
           </div>
         </div>

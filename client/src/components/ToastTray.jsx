@@ -4,7 +4,8 @@ import useGameStore from '../store/useGameStore';
 const TOAST_TTL_MS = 2600;
 
 export default function ToastTray() {
-  const { toasts, removeToast } = useGameStore();
+  const toasts = useGameStore((state) => state.toasts);
+  const removeToast = useGameStore((state) => state.removeToast);
 
   useEffect(() => {
     if (!toasts.length) return undefined;

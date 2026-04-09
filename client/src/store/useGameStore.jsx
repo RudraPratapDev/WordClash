@@ -4,6 +4,7 @@ const useGameStore = create((set, get) => ({
   playerName: '',
   roomId: null,
   room: null,
+  matchMode: 'multiplayer',
   chat: [],
   toasts: [],
   roundState: 'LOBBY',
@@ -12,11 +13,13 @@ const useGameStore = create((set, get) => ({
   isDarkMode: false,
 
   setPlayerName: (name) => set({ playerName: name }),
+  setMatchMode: (mode) => set({ matchMode: mode === 'solo' ? 'solo' : 'multiplayer' }),
   setRoom: (room) => set((state) => {
     if (!room) {
       return {
         room: null,
         roomId: null,
+        matchMode: 'multiplayer',
         roundState: 'LOBBY',
         chat: [],
         lastTargetWord: '',
@@ -63,6 +66,7 @@ const useGameStore = create((set, get) => ({
   clearRoom: () => set({
     room: null,
     roomId: null,
+    matchMode: 'multiplayer',
     roundState: 'LOBBY',
     chat: [],
     lastTargetWord: '',

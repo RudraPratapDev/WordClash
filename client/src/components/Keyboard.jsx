@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 
 const KEYS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -6,7 +6,7 @@ const KEYS = [
   ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']
 ];
 
-export default function Keyboard({ onKeyPress, usedKeys, disabled = false }) {
+function Keyboard({ onKeyPress, usedKeys, disabled = false }) {
   
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -62,3 +62,5 @@ export default function Keyboard({ onKeyPress, usedKeys, disabled = false }) {
     </div>
   );
 }
+
+export default memo(Keyboard);

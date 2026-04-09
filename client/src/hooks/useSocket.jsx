@@ -13,6 +13,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const setRoom = useGameStore((state) => state.setRoom);
   const addChatMessage = useGameStore((state) => state.addChatMessage);
+  const setMatchMode = useGameStore((state) => state.setMatchMode);
   const setRoundState = useGameStore((state) => state.setRoundState);
   const setWordInsight = useGameStore((state) => state.setWordInsight);
   const updateRoomPlayer = useGameStore((state) => state.updateRoomPlayer);
@@ -32,6 +33,7 @@ export function useSocket() {
 
       const session = getSession();
       if (session?.roomId && session?.playerKey) {
+        setMatchMode(session.matchMode === 'solo' ? 'solo' : 'multiplayer');
         socket.emit('resume_session', session, (response) => {
           if (response?.error) {
             clearSession();
