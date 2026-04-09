@@ -296,6 +296,22 @@ function resetMatch(roomId) {
   return room;
 }
 
+function getSafePlayerPayload(player) {
+  if (!player) return null;
+
+  return {
+    id: player.id,
+    publicId: player.publicId,
+    name: player.name,
+    avatar: player.avatar,
+    isOnline: player.isOnline,
+    score: player.score,
+    isReady: player.isReady,
+    guessStatuses: player.guesses,
+    hasGuessedCorrectly: player.hasGuessedCorrectly,
+  };
+}
+
 // Map the player object to safely emit to clients (hide guesses' letters if not strictly needed, but client needs color results)
 // The actual word is NEVER sent to the client. Color results are tracked as an array of 'correct', 'present', 'absent' arrays.
 function getSafeRoomPayload(room) {
@@ -307,17 +323,7 @@ function getSafeRoomPayload(room) {
     state: room.state,
     currentRound: room.currentRound,
     roundEndsAt: room.roundEndsAt,
-    players: room.players.map(p => ({
-      id: p.id,
-      publicId: p.publicId,
-      name: p.name,
-      avatar: p.avatar,
-      isOnline: p.isOnline,
-      score: p.score,
-      isReady: p.isReady,
-      guessStatuses: p.guesses, // This just contains color arrays, no letters
-      hasGuessedCorrectly: p.hasGuessedCorrectly
-    }))
+    players: room.players.map(getSafePlayerPayload)
   };
 }
 
@@ -330,5 +336,6 @@ module.exports = {
   markPlayerDisconnected,
   prepareRound,
   resetMatch,
-  getSafeRoomPayload
+  getSafeRoomPayload,
+  getSafePlayerPayload,
 };

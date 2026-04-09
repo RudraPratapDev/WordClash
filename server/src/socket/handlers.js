@@ -1,6 +1,6 @@
 const roomManager = require('../game/roomManager');
 const { validateGuess, calculateScore } = require('../game/gameLogic');
-const { isValidWord, getWordInsight } = require('../game/wordList');
+const { isValidWord, isValidWordSync, getWordInsight } = require('../game/wordList');
 
 function sanitizePlayerName(name) {
   const trimmed = (name || '').trim().slice(0, 20);
@@ -182,7 +182,7 @@ function setupSockets(io) {
         return callback({ error: 'Invalid word length' });
       }
 
-      const validWord = await isValidWord(normalizedGuess, room.settings.wordLength);
+      const validWord = isValidWordSync(normalizedGuess) || await isValidWord(normalizedGuess, room.settings.wordLength);
       if (!validWord) {
         return callback({ error: 'Word does not exist' });
       }
@@ -212,12 +212,15 @@ function setupSockets(io) {
         player.score += scoreEarned;
       }
 
-      io.to(roomId).emit('room_updated', roomManager.getSafeRoomPayload(room));
+      // Send result back immediately to keep input feedback snappy.
+      callback({ statuses: statusArr });
+
+      io.to(roomId).emit('player_updated', {
+        player: roomManager.getSafePlayerPayload(player),
+      });
 
       // Ignore offline players when deciding whether the round can end.
       tryEndRoundIfEligible(io, roomId);
-
-      callback({ statuses: statusArr });
     });
 
     socket.on('start_game', () => {

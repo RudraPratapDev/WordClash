@@ -13,6 +13,23 @@ const useGameStore = create((set, get) => ({
 
   setPlayerName: (name) => set({ playerName: name }),
   setRoom: (room) => set({ room, roomId: room.id, roundState: room.state }),
+  updateRoomPlayer: (incomingPlayer) => set((state) => {
+    if (!state.room || !incomingPlayer) return {};
+
+    const nextPlayers = state.room.players.map((player) => {
+      const samePublicId = incomingPlayer.publicId && player.publicId === incomingPlayer.publicId;
+      const sameId = player.id === incomingPlayer.id;
+      if (!samePublicId && !sameId) return player;
+      return { ...player, ...incomingPlayer };
+    });
+
+    return {
+      room: {
+        ...state.room,
+        players: nextPlayers,
+      },
+    };
+  }),
   setRoundState: (state, targetWord = '', wordInfo = null) => set({
     roundState: state,
     lastTargetWord: targetWord,

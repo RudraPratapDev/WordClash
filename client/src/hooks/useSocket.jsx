@@ -11,7 +11,12 @@ export const socket = io(SOCKET_URL, {
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(socket.connected);
-  const { setRoom, addChatMessage, setRoundState, setWordInsight, pushToast } = useGameStore();
+  const setRoom = useGameStore((state) => state.setRoom);
+  const addChatMessage = useGameStore((state) => state.addChatMessage);
+  const setRoundState = useGameStore((state) => state.setRoundState);
+  const setWordInsight = useGameStore((state) => state.setWordInsight);
+  const updateRoomPlayer = useGameStore((state) => state.updateRoomPlayer);
+  const pushToast = useGameStore((state) => state.pushToast);
 
   useEffect(() => {
     socket.connect();
@@ -51,6 +56,11 @@ export function useSocket() {
     function onRoundEnded({ room, targetWord, wordInfo }) {
       setRoom(room);
       setRoundState(room.state, targetWord, wordInfo || null);
+    }
+
+    function onPlayerUpdated({ player }) {
+      if (!player) return;
+      updateRoomPlayer(player);
     }
 
     function onWordInsight({ targetWord, wordInfo }) {
@@ -97,6 +107,7 @@ export function useSocket() {
     socket.on('room_updated', onRoomUpdated);
     socket.on('round_started', onRoundStarted);
     socket.on('round_ended', onRoundEnded);
+    socket.on('player_updated', onPlayerUpdated);
     socket.on('word_insight', onWordInsight);
     socket.on('chat_message', onChatMessage);
     socket.on('presence_event', onPresenceEvent);
@@ -107,6 +118,7 @@ export function useSocket() {
       socket.off('room_updated', onRoomUpdated);
       socket.off('round_started', onRoundStarted);
       socket.off('round_ended', onRoundEnded);
+      socket.off('player_updated', onPlayerUpdated);
       socket.off('word_insight', onWordInsight);
       socket.off('chat_message', onChatMessage);
       socket.off('presence_event', onPresenceEvent);
