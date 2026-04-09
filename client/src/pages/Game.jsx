@@ -9,7 +9,10 @@ import Leaderboard from '../components/Leaderboard';
 import OpponentPanel from '../components/OpponentPanel';
 
 export default function Game() {
-  const { room, roundState, lastTargetWord, lastWordInfo } = useGameStore();
+  const room = useGameStore((state) => state.room);
+  const roundState = useGameStore((state) => state.roundState);
+  const lastTargetWord = useGameStore((state) => state.lastTargetWord);
+  const lastWordInfo = useGameStore((state) => state.lastWordInfo);
   const navigate = useNavigate();
 
   const [currentGuess, setCurrentGuess] = useState('');
@@ -59,21 +62,23 @@ export default function Game() {
   }, [room, roundState, navigate]);
 
   useEffect(() => {
-    if (!room || roundState !== 'IN_ROUND' || !room.roundEndsAt) {
+    const roundEndsAt = room?.roundEndsAt;
+
+    if (!roundEndsAt || roundState !== 'IN_ROUND') {
       setSecondsLeft(null);
       return;
     }
 
     const tick = () => {
-      const remaining = Math.max(0, Math.ceil((room.roundEndsAt - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.ceil((roundEndsAt - Date.now()) / 1000));
       setSecondsLeft(remaining);
     };
 
     tick();
-    const timerId = setInterval(tick, 250);
+    const timerId = setInterval(tick, 1000);
 
     return () => clearInterval(timerId);
-  }, [room?.roundEndsAt, roundState, room]);
+  }, [room?.roundEndsAt, roundState]);
 
   useEffect(() => {
     if (lastTargetWord && (roundState === 'ROUND_ENDED' || roundState === 'GAME_OVER')) {
