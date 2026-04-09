@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../hooks/useSocket';
 import useGameStore from '../store/useGameStore';
 import { Sparkles, Zap } from 'lucide-react';
@@ -13,6 +13,8 @@ const PRESETS = {
 };
 
 export default function Home() {
+  const { roomId: roomIdFromPath } = useParams();
+  const location = useLocation();
   const initialSuggestion = useMemo(() => getSuggestedUsername(), []);
   const [suggestedName, setSuggestedName] = useState(initialSuggestion);
   const [name, setName] = useState(initialSuggestion);
@@ -25,6 +27,13 @@ export default function Home() {
   const { setPlayerName, setRoom } = useGameStore();
 
   const resolvedName = (name || suggestedName).trim();
+
+  useEffect(() => {
+    const queryRoom = new URLSearchParams(location.search).get('room') || '';
+    const incomingRoom = (roomIdFromPath || queryRoom || '').trim().toUpperCase();
+    if (!incomingRoom) return;
+    setJoinCode(incomingRoom);
+  }, [roomIdFromPath, location.search]);
 
   const regenerateSuggestion = () => {
     const nextName = getSuggestedUsername();
@@ -64,6 +73,32 @@ export default function Home() {
       }
       saveSession({ roomId: room.id, playerName: resolvedName, playerKey });
       setRoom(room);
+      navigate(`/room/${room.id}`);
+    });
+  };
+
+  const handleSoloBlitz = () => {
+    if (!resolvedName) {
+      setFormError('Please enter a player name.');
+      return;
+    }
+
+    setFormError('');
+    setPlayerName(resolvedName);
+    const playerKey = getPlayerKey();
+
+    // Solo mode still uses the multiplayer room pipeline for consistency.
+    const soloSettings = { ...settings, maxPlayers: 2 };
+
+    socket.emit('create_room', { playerName: resolvedName, settings: soloSettings, playerKey }, (room) => {
+      if (!room || room.error) {
+        setFormError(room?.error || 'Unable to start solo match right now.');
+        return;
+      }
+
+      saveSession({ roomId: room.id, playerName: resolvedName, playerKey });
+      setRoom(room);
+      socket.emit('start_game');
       navigate(`/room/${room.id}`);
     });
   };
@@ -113,9 +148,12 @@ export default function Home() {
             />
           </div>
 
-          {!showCreateSettings ? (
+          <div className="row">
             <button className="btn" onClick={() => setShowCreateSettings(true)}>Create Room</button>
-          ) : (
+            <button className="btn btn-secondary" onClick={handleSoloBlitz}>Solo Blitz</button>
+          </div>
+
+          {showCreateSettings && (
             <div className="create-panel">
               <div className="create-head">
                 <p className="label">Customize your room</p>

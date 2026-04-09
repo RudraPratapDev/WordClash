@@ -6,11 +6,13 @@ import { Send } from 'lucide-react';
 export default function ChatPanel() {
   const { chat } = useGameStore();
   const [text, setText] = useState('');
+  const [autoScroll, setAutoScroll] = useState(true);
   const endRef = useRef(null);
 
   useEffect(() => {
+    if (!autoScroll) return;
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chat]);
+  }, [chat, autoScroll]);
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -20,11 +22,14 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className="panel module">
-      <div className="module-head">
-        Room Chat
+    <div className="panel module chat-panel">
+      <div className="module-head chat-head">
+        <span>Room Chat</span>
+        <button type="button" className="ghost-btn" onClick={() => setAutoScroll(prev => !prev)}>
+          Auto-scroll: {autoScroll ? 'On' : 'Off'}
+        </button>
       </div>
-      <div className="module-body">
+      <div className="module-body chat-scroll">
         {chat.map(msg => (
           <div key={msg.id} className="chat-bubble">
             <span className="chat-name">{msg.sender}</span>

@@ -16,10 +16,11 @@ export default function Leaderboard() {
       <div className="module-body" style={{ padding: 0 }}>
         <ul style={{ listStyle: 'none' }}>
           {sortedPlayers.map((p, i) => (
-            <li key={p.id} className={`rank-item ${i === 0 ? 'top' : ''}`}>
+            <li key={p.publicId || p.id} className={`rank-item ${i === 0 ? 'top' : ''}`}>
               <span className="player-tag" style={{ fontWeight: i === 0 ? 700 : 500 }}>
-                <span className="avatar-dot">{p.avatar || '🙂'}</span>
+                <span className="avatar-dot">{p.avatar || 'PL'}</span>
                 {i + 1}. {p.name}
+                {!p.isOnline && <span className="presence-chip offline">Offline</span>}
               </span>
               <span style={{ fontWeight: 800 }}>{p.score}</span>
             </li>

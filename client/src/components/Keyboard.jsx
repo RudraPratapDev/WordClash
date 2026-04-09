@@ -6,7 +6,7 @@ const KEYS = [
   ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']
 ];
 
-export default function Keyboard({ onKeyPress, usedKeys }) {
+export default function Keyboard({ onKeyPress, usedKeys, disabled = false }) {
   
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -22,6 +22,10 @@ export default function Keyboard({ onKeyPress, usedKeys }) {
         return;
       }
 
+      if (disabled) {
+        return;
+      }
+
       let key = e.key.toUpperCase();
       if (key === 'ENTER' || key === 'BACKSPACE') {
         onKeyPress(key);
@@ -32,7 +36,7 @@ export default function Keyboard({ onKeyPress, usedKeys }) {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onKeyPress]);
+  }, [onKeyPress, disabled]);
 
   return (
     <div className="keyboard">
@@ -47,6 +51,7 @@ export default function Keyboard({ onKeyPress, usedKeys }) {
                 key={key}
                 onClick={() => onKeyPress(key)}
                 className={`key-btn ${isAction ? 'action' : ''} ${status}`}
+                disabled={disabled}
               >
                 {displayLabel}
               </button>

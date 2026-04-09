@@ -6,6 +6,7 @@ import AboutDeveloper from './pages/AboutDeveloper';
 import { useSocket } from './hooks/useSocket';
 import { Sun, Moon } from 'lucide-react';
 import useGameStore from './store/useGameStore';
+import ToastTray from './components/ToastTray';
 import './index.css';
 
 function App() {
@@ -36,11 +37,13 @@ function App() {
         <main className="container page-wrap">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/join/:roomId" element={<Home />} />
             <Route path="/room/:roomId" element={<Lobby />} />
             <Route path="/game" element={<Game />} />
             <Route path="/about-developer" element={<AboutDeveloper />} />
           </Routes>
         </main>
+        <ToastTray />
       </div>
     </BrowserRouter>
   );

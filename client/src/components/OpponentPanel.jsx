@@ -27,13 +27,16 @@ export default function OpponentPanel({ player, wordLength }) {
   }
 
   return (
-    <article className="opponent-card">
+    <article className={`opponent-card ${player.isOnline ? '' : 'is-offline'}`}>
       <div className="opponent-head">
-        <span className="player-tag" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
-          <span className="avatar-dot small">{player.avatar || '🙂'}</span>
+        <span className="player-tag opponent-name">
+          <span className="avatar-dot small">{player.avatar || 'PL'}</span>
           {player.name}
         </span>
-        {player.hasGuessedCorrectly && <span title="Solved!">✅</span>}
+        <span className="player-status-pack">
+          {!player.isOnline && <span className="presence-chip offline">Offline</span>}
+          {player.hasGuessedCorrectly && <span className="presence-chip solved">Solved</span>}
+        </span>
       </div>
       <div className="opponent-grid">
         {rows}

@@ -15,8 +15,8 @@ export default function Board({ guesses, currentGuess, wordLength, isActive }) {
           ))}
         </div>
       );
-    } else if (i === guesses.length && isActive) {
-      // Current active guess
+    } else if (i === guesses.length && (isActive || currentGuess.length > 0)) {
+      // Keep the pending guess visible while validation is in progress.
       const currentLetters = currentGuess.split('');
       rows.push(
         <div key={i} className="board-row">

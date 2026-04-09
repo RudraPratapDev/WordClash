@@ -1,8 +1,12 @@
 const { getRandomWord, getWordPool } = require('./wordList');
 
-const RECONNECT_GRACE_MS = 120000;
+const RECONNECT_GRACE_MS = 30000;
 
-const AVATAR_SET = ['🦊', '🐼', '🐯', '🦁', '🐸', '🐙', '🦉', '🐨', '🐬', '🦄', '🐺', '🦜', '🦋', '🐢', '🦝', '🐻'];
+const AVATAR_SET = ['AX', 'BR', 'CT', 'DV', 'EL', 'FN', 'GK', 'HM', 'IR', 'JS', 'KV', 'LW', 'MX', 'NY', 'PZ', 'QR'];
+
+function createPublicId() {
+  return `u_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function hashString(value = '') {
   let hash = 0;
@@ -69,10 +73,12 @@ function createRoom(roomId, ownerId, ownerName, settings) {
     roundStartTime: null,
     roundEndsAt: null,
     roundTimer: null,
+    prefetchedWordInfo: null,
   };
 
   room.players.push({
     id: ownerId,
+    publicId: createPublicId(),
     playerKey: settings.playerKey || ownerId,
     name: ownerName,
     score: 0,
@@ -126,6 +132,7 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
   if (!exists) {
     room.players.push({
       id: playerId,
+      publicId: createPublicId(),
       playerKey,
       name: playerName,
       score: 0,
@@ -190,7 +197,7 @@ function reconnectPlayer(roomId, playerKey, playerId, playerName) {
   return { room, player };
 }
 
-function markPlayerDisconnected(roomId, playerId) {
+function markPlayerDisconnected(roomId, playerId, onExpired) {
   const room = rooms[roomId];
   if (!room) return null;
 
@@ -225,6 +232,10 @@ function markPlayerDisconnected(roomId, playerId) {
     if (currentRoom.ownerId === target.id) {
       currentRoom.ownerId = currentRoom.players[0].id;
     }
+
+    if (typeof onExpired === 'function') {
+      onExpired(currentRoom, target);
+    }
   }, RECONNECT_GRACE_MS);
 
   return room;
@@ -242,6 +253,7 @@ function prepareRound(roomId) {
   room.currentRound += 1;
   room.targetWord = getRandomWord(room.settings.wordLength, room.usedWords);
   room.usedWords.push(room.targetWord);
+  room.prefetchedWordInfo = null;
   room.roundEnding = false;
   
   // Reset player round states
@@ -270,6 +282,7 @@ function resetMatch(roomId) {
   room.targetWord = '';
   room.usedWords = [];
   room.roundEnding = false;
+  room.prefetchedWordInfo = null;
   room.state = 'LOBBY';
   room.roundStartTime = null;
   room.roundEndsAt = null;
@@ -296,6 +309,7 @@ function getSafeRoomPayload(room) {
     roundEndsAt: room.roundEndsAt,
     players: room.players.map(p => ({
       id: p.id,
+      publicId: p.publicId,
       name: p.name,
       avatar: p.avatar,
       isOnline: p.isOnline,

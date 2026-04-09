@@ -1,6 +1,6 @@
 const roomManager = require('../game/roomManager');
 const { validateGuess, calculateScore } = require('../game/gameLogic');
-const { isValidWord } = require('../game/wordList');
+const { isValidWord, getWordInsight } = require('../game/wordList');
 
 function sanitizePlayerName(name) {
   const trimmed = (name || '').trim().slice(0, 20);
@@ -30,10 +30,65 @@ function scheduleRoundTimer(io, roomId) {
   }, timeoutMs);
 }
 
+function prefetchRoundWordInsight(roomId) {
+  const room = roomManager.getRoom(roomId);
+  if (!room || !room.targetWord) return;
+
+  const target = room.targetWord;
+  getWordInsight(target)
+    .then((wordInfo) => {
+      const latestRoom = roomManager.getRoom(roomId);
+      if (!latestRoom || latestRoom.targetWord !== target) return;
+
+      latestRoom.prefetchedWordInfo = wordInfo || {
+        word: target,
+        partOfSpeech: 'Unknown',
+        meaning: 'No dictionary insight available for this round word.',
+        example: '',
+        source: 'fallback',
+      };
+    })
+    .catch(() => {
+      const latestRoom = roomManager.getRoom(roomId);
+      if (!latestRoom || latestRoom.targetWord !== target) return;
+
+      latestRoom.prefetchedWordInfo = {
+        word: target,
+        partOfSpeech: 'Unknown',
+        meaning: 'No dictionary insight available for this round word.',
+        example: '',
+        source: 'fallback',
+      };
+    });
+}
+
+function emitPresenceEvent(io, roomId, event) {
+  io.to(roomId).emit('presence_event', event);
+}
+
+function findPublicIdBySocket(room, socketId) {
+  return room?.players.find(player => player.id === socketId)?.publicId || null;
+}
+
+function tryEndRoundIfEligible(io, roomId) {
+  const room = roomManager.getRoom(roomId);
+  if (!room || room.state !== 'IN_ROUND' || room.roundEnding) return;
+
+  const activePlayers = room.players.filter(p => p.isOnline);
+  if (activePlayers.length === 0) return;
+
+  const allDone = activePlayers.every(p => p.hasGuessedCorrectly || p.guesses.length >= 6);
+  if (!allDone) return;
+
+  room.roundEnding = true;
+  clearRoomTimer(room);
+  setTimeout(() => {
+    endRound(io, roomId, 'all-done');
+  }, 1200);
+}
+
 function setupSockets(io) {
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-
     socket.on('create_room', ({ playerName, settings, playerKey }, callback) => {
       const safeName = sanitizePlayerName(playerName);
       // Create a short room ID
@@ -62,6 +117,11 @@ function setupSockets(io) {
 
       const safeRoom = roomManager.getSafeRoomPayload(result.room);
       io.to(roomId).emit('room_updated', safeRoom);
+      emitPresenceEvent(io, roomId, {
+        type: result.rejoined ? 'rejoined' : 'joined',
+        playerName: safeName,
+        playerId: findPublicIdBySocket(result.room, socket.id),
+      });
       callback({ room: safeRoom, rejoined: Boolean(result.rejoined) });
     });
 
@@ -83,6 +143,11 @@ function setupSockets(io) {
       socket.data.playerKey = playerKey;
 
       io.to(roomId).emit('room_updated', safeRoom);
+      emitPresenceEvent(io, roomId, {
+        type: 'rejoined',
+        playerName: safeName,
+        playerId: findPublicIdBySocket(result.room, socket.id),
+      });
       callback?.({ room: safeRoom, resumed: true });
     });
 
@@ -135,22 +200,22 @@ function setupSockets(io) {
         const timeRemaining = Math.max(0, room.settings.timeLimit - timeElapsed);
         
         const anyoneElseCorrect = room.players.some(p => p.id !== socket.id && p.hasGuessedCorrectly);
-        const scoreEarned = calculateScore(timeRemaining, player.guesses.length, true, !anyoneElseCorrect);
+        const scoreEarned = calculateScore(
+          timeRemaining,
+          player.guesses.length,
+          true,
+          !anyoneElseCorrect,
+          room.settings.timeLimit,
+          room.settings.wordLength
+        );
         
         player.score += scoreEarned;
       }
 
       io.to(roomId).emit('room_updated', roomManager.getSafeRoomPayload(room));
 
-      // Check if round should end
-      const allDone = room.players.every(p => p.hasGuessedCorrectly || p.guesses.length >= 6);
-      if (allDone && !room.roundEnding) {
-        room.roundEnding = true;
-        clearRoomTimer(room);
-        setTimeout(() => {
-          endRound(io, roomId, 'all-done');
-        }, 1500); // Small delay to let users see final guess animation
-      }
+      // Ignore offline players when deciding whether the round can end.
+      tryEndRoundIfEligible(io, roomId);
 
       callback({ statuses: statusArr });
     });
@@ -158,10 +223,11 @@ function setupSockets(io) {
     socket.on('start_game', () => {
       const roomId = socket.data.roomId;
       const room = roomManager.getRoom(roomId);
-      if (room && room.ownerId === socket.id && room.state === 'LOBBY') {
+      if (room && room.ownerId === socket.id && (room.state === 'LOBBY' || room.state === 'GAME_OVER')) {
         roomManager.resetMatch(roomId);
         const updatedRoom = roomManager.prepareRound(roomId);
         io.to(roomId).emit('round_started', roomManager.getSafeRoomPayload(updatedRoom));
+        prefetchRoundWordInsight(roomId);
         scheduleRoundTimer(io, roomId);
       }
     });
@@ -169,12 +235,27 @@ function setupSockets(io) {
     socket.on('disconnect', () => {
       const roomId = socket.data.roomId;
       if (roomId) {
-        const room = roomManager.markPlayerDisconnected(roomId, socket.id);
+        const room = roomManager.markPlayerDisconnected(roomId, socket.id, (updatedRoom, removedPlayer) => {
+          emitPresenceEvent(io, roomId, {
+            type: 'expired',
+            playerName: removedPlayer?.name || 'Player',
+            playerId: removedPlayer?.publicId || null,
+          });
+
+          if (updatedRoom) {
+            io.to(roomId).emit('room_updated', roomManager.getSafeRoomPayload(updatedRoom));
+          }
+        });
         if (room) {
           io.to(roomId).emit('room_updated', roomManager.getSafeRoomPayload(room));
+          emitPresenceEvent(io, roomId, {
+            type: 'offline',
+            playerName: socket.data.playerName || 'Player',
+            playerId: findPublicIdBySocket(room, socket.id),
+          });
+          tryEndRoundIfEligible(io, roomId);
         }
       }
-      console.log('Client disconnected:', socket.id);
     });
   });
 }
@@ -192,13 +273,29 @@ function endRound(io, roomId, reason = 'unknown') {
   }
 
   room.roundEndsAt = null;
+
+  const revealedWord = room.targetWord;
   
   // We can reveal the target word at the end of the round
   io.to(roomId).emit('round_ended', { 
     room: roomManager.getSafeRoomPayload(room),
-    targetWord: room.targetWord,
+    targetWord: revealedWord,
+    wordInfo: room.prefetchedWordInfo || null,
     reason,
   });
+
+  if (!room.prefetchedWordInfo && revealedWord) {
+    io.to(roomId).emit('word_insight', {
+      targetWord: revealedWord,
+      wordInfo: {
+        word: revealedWord,
+        partOfSpeech: 'Unknown',
+        meaning: 'No dictionary insight available for this round word.',
+        example: '',
+        source: 'fallback',
+      },
+    });
+  }
 
   if (room.state !== 'GAME_OVER') {
     setTimeout(() => {
@@ -207,6 +304,7 @@ function endRound(io, roomId, reason = 'unknown') {
 
       const updatedRoom = roomManager.prepareRound(roomId);
       io.to(roomId).emit('round_started', roomManager.getSafeRoomPayload(updatedRoom));
+      prefetchRoundWordInsight(roomId);
       scheduleRoundTimer(io, roomId);
     }, 4000);
   }

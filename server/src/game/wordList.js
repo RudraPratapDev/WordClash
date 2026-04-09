@@ -4,18 +4,24 @@ const WORDS_4 = buckets.words4 || [];
 const WORDS_5 = buckets.words5 || [];
 const WORDS_6 = buckets.words6 || [];
 
+const TARGET_WORDS_4 = buckets.targetWords4 || WORDS_4;
+const TARGET_WORDS_5 = buckets.targetWords5 || WORDS_5;
+const TARGET_WORDS_6 = buckets.targetWords6 || WORDS_6;
+
 const WORD_SET_4 = new Set(WORDS_4);
 const WORD_SET_5 = new Set(WORDS_5);
 const WORD_SET_6 = new Set(WORDS_6);
 
 const validityCache = new Map();
+const insightCache = new Map();
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
+const INSIGHT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 function getWordPool(length) {
-  if (length === 4) return WORDS_4;
-  if (length === 5) return WORDS_5;
-  if (length === 6) return WORDS_6;
-  return WORDS_5;
+  if (length === 4) return TARGET_WORDS_4;
+  if (length === 5) return TARGET_WORDS_5;
+  if (length === 6) return TARGET_WORDS_6;
+  return TARGET_WORDS_5;
 }
 
 function getWordSet(length) {
@@ -48,6 +54,22 @@ function readCache(word) {
 
 function writeCache(word, value) {
   validityCache.set(word, { value, ts: Date.now() });
+}
+
+function readInsightCache(word) {
+  const cached = insightCache.get(word);
+  if (!cached) return null;
+
+  if (Date.now() - cached.ts > INSIGHT_CACHE_TTL_MS) {
+    insightCache.delete(word);
+    return null;
+  }
+
+  return cached.value;
+}
+
+function writeInsightCache(word, value) {
+  insightCache.set(word, { value, ts: Date.now() });
 }
 
 async function fetchWithTimeout(url, timeoutMs = Number(process.env.WORD_VALIDATION_TIMEOUT_MS || 5000)) {
@@ -83,6 +105,120 @@ async function validateDictionaryApiDev(word) {
   } catch {
     return false;
   }
+}
+
+function normalizeDefinitionInsight(word, partOfSpeech, meaning, example, source) {
+  if (!meaning || typeof meaning !== 'string') return null;
+
+  const cleanText = (value) => {
+    if (typeof value !== 'string') return '';
+
+    return value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const cleanedMeaning = cleanText(meaning);
+  if (!cleanedMeaning) return null;
+
+  const cleanedExample = cleanText(example);
+
+  return {
+    word,
+    partOfSpeech: partOfSpeech || 'Unknown',
+    meaning: cleanedMeaning,
+    example: cleanedExample,
+    source,
+  };
+}
+
+async function fetchDictionaryApiDevInsight(word) {
+  try {
+    const response = await fetchWithTimeout(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`,
+      Number(process.env.WORD_INSIGHT_TIMEOUT_MS || 1800)
+    );
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!Array.isArray(data) || !data.length) return null;
+
+    for (const entry of data) {
+      const meanings = Array.isArray(entry?.meanings) ? entry.meanings : [];
+      for (const meaningBlock of meanings) {
+        const defs = Array.isArray(meaningBlock?.definitions) ? meaningBlock.definitions : [];
+        for (const def of defs) {
+          const insight = normalizeDefinitionInsight(
+            word,
+            meaningBlock?.partOfSpeech,
+            def?.definition,
+            def?.example,
+            'dictionaryapi.dev'
+          );
+          if (insight) return insight;
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWiktionaryInsight(word) {
+  try {
+    const response = await fetchWithTimeout(
+      `https://en.wiktionary.org/api/rest_v1/page/definition/${word.toLowerCase()}`,
+      Number(process.env.WORD_INSIGHT_TIMEOUT_MS || 1800)
+    );
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const entries = Array.isArray(data?.en) ? data.en : [];
+    if (!entries.length) return null;
+
+    for (const entry of entries) {
+      const definitions = Array.isArray(entry?.definitions) ? entry.definitions : [];
+      for (const def of definitions) {
+        const insight = normalizeDefinitionInsight(
+          word,
+          entry?.partOfSpeech,
+          def?.definition,
+          def?.examples?.[0],
+          'wiktionary'
+        );
+        if (insight) return insight;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function getWordInsight(word) {
+  const upper = (word || '').toUpperCase().trim();
+  if (!/^[A-Z]+$/.test(upper)) return null;
+
+  const cached = readInsightCache(upper);
+  if (cached !== null) return cached;
+
+  const results = await Promise.allSettled([
+    fetchDictionaryApiDevInsight(upper),
+    fetchWiktionaryInsight(upper),
+  ]);
+
+  const insight = results.find((result) => result.status === 'fulfilled' && result.value)?.value || null;
+  writeInsightCache(upper, insight);
+  return insight;
 }
 
 async function validateDatamuse(word) {
@@ -146,4 +282,4 @@ function isValidWordSync(word) {
   return setForLength.has(upper);
 }
 
-module.exports = { getRandomWord, isValidWord, isValidWordSync, getWordPool };
+module.exports = { getRandomWord, isValidWord, isValidWordSync, getWordPool, getWordInsight };

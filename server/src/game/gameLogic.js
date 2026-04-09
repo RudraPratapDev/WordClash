@@ -30,23 +30,32 @@ function validateGuess(guess, targetWord) {
   return result;
 }
 
-function calculateScore(timeRemaining, guessesUsed, solved, isFirst) {
+function calculateScore(timeRemaining, guessesUsed, solved, isFirst, timeLimit = 120, wordLength = 5) {
   if (!solved) return 0;
-  
-  let score = 100; // Base score
-  // Bonus for time remaining
-  if (timeRemaining > 0) {
-    score += timeRemaining * 10;
-  }
-  // Bonus for efficiency (6 max guesses minus used guesses, 20 pts per unused guess)
-  const unusedGuesses = 6 - guessesUsed;
-  score += unusedGuesses * 20;
-  
-  if (isFirst) {
-    score += 50;
-  }
-  
-  return score;
+
+  const safeTimeLimit = Math.max(1, Number(timeLimit) || 120);
+  const safeTimeRemaining = Math.max(0, Number(timeRemaining) || 0);
+  const safeGuessesUsed = Math.min(6, Math.max(1, Math.floor(Number(guessesUsed) || 6)));
+  const safeWordLength = Math.min(6, Math.max(4, Math.floor(Number(wordLength) || 5)));
+
+  // Accuracy is king: better rewards for solving in fewer attempts.
+  const accuracyBonusTable = {
+    1: 240,
+    2: 185,
+    3: 145,
+    4: 105,
+    5: 70,
+    6: 40,
+  };
+
+  const basePoints = 120;
+  const accuracyBonus = accuracyBonusTable[safeGuessesUsed] || 40;
+  const speedRatio = Math.min(1, safeTimeRemaining / safeTimeLimit);
+  const speedBonus = Math.round(speedRatio * 220);
+  const firstSolveBonus = isFirst ? 90 : 0;
+  const difficultyBonus = (safeWordLength - 4) * 35;
+
+  return Math.max(0, Math.round(basePoints + accuracyBonus + speedBonus + firstSolveBonus + difficultyBonus));
 }
 
 module.exports = { validateGuess, calculateScore };
