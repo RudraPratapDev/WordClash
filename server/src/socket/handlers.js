@@ -212,6 +212,8 @@ function setupSockets(io) {
         player.score += scoreEarned;
       }
 
+      roomManager.markRoomDirty(room);
+
       // Send result back immediately to keep input feedback snappy.
       callback({ statuses: statusArr });
 
@@ -276,6 +278,7 @@ function endRound(io, roomId, reason = 'unknown') {
   }
 
   room.roundEndsAt = null;
+  roomManager.markRoomDirty(room);
 
   const revealedWord = room.targetWord;
   

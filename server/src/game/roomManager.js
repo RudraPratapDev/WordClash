@@ -46,6 +46,13 @@ function pickAvatar(room, playerId) {
 // }
 const rooms = {};
 
+function markRoomDirty(room) {
+  if (!room) return;
+  room._payloadVersion = (room._payloadVersion || 0) + 1;
+  room._safePayload = null;
+  room._safePayloadVersion = -1;
+}
+
 function createRoom(roomId, ownerId, ownerName, settings) {
   const timeLimit = Math.min(Math.max(Number(settings.timeLimit || 120), 15), 600);
   const wordLength = Math.min(Math.max(settings.wordLength || 5, 4), 6);
@@ -74,6 +81,9 @@ function createRoom(roomId, ownerId, ownerName, settings) {
     roundEndsAt: null,
     roundTimer: null,
     prefetchedWordInfo: null,
+    _payloadVersion: 0,
+    _safePayloadVersion: -1,
+    _safePayload: null,
   };
 
   room.players.push({
@@ -92,6 +102,7 @@ function createRoom(roomId, ownerId, ownerName, settings) {
   });
 
   rooms[roomId] = room;
+  markRoomDirty(rooms[roomId]);
   return rooms[roomId];
 }
 
@@ -120,6 +131,7 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
       room.ownerId = playerId;
     }
 
+    markRoomDirty(room);
     return { room, rejoined: true };
   }
   
@@ -144,6 +156,7 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
       hasGuessedCorrectly: false,
       avatar: pickAvatar(room, playerId),
     });
+    markRoomDirty(room);
   }
   
   return { room };
@@ -168,6 +181,8 @@ function leaveRoom(roomId, playerId) {
   if (room.ownerId === playerId) {
     room.ownerId = room.players[0].id;
   }
+
+  markRoomDirty(room);
   
   return room;
 }
@@ -194,6 +209,7 @@ function reconnectPlayer(roomId, playerKey, playerId, playerName) {
     room.ownerId = playerId;
   }
 
+  markRoomDirty(room);
   return { room, player };
 }
 
@@ -206,6 +222,7 @@ function markPlayerDisconnected(roomId, playerId, onExpired) {
 
   player.isOnline = false;
   player.disconnectedAt = Date.now();
+  markRoomDirty(room);
 
   if (player.disconnectTimer) {
     clearTimeout(player.disconnectTimer);
@@ -232,6 +249,8 @@ function markPlayerDisconnected(roomId, playerId, onExpired) {
     if (currentRoom.ownerId === target.id) {
       currentRoom.ownerId = currentRoom.players[0].id;
     }
+
+    markRoomDirty(currentRoom);
 
     if (typeof onExpired === 'function') {
       onExpired(currentRoom, target);
@@ -265,6 +284,7 @@ function prepareRound(roomId) {
   room.state = 'IN_ROUND';
   room.roundStartTime = Date.now();
   room.roundEndsAt = room.roundStartTime + room.settings.timeLimit * 1000;
+  markRoomDirty(room);
   
   return room;
 }
@@ -293,6 +313,8 @@ function resetMatch(roomId) {
     p.hasGuessedCorrectly = false;
   });
 
+  markRoomDirty(room);
+
   return room;
 }
 
@@ -316,7 +338,12 @@ function getSafePlayerPayload(player) {
 // The actual word is NEVER sent to the client. Color results are tracked as an array of 'correct', 'present', 'absent' arrays.
 function getSafeRoomPayload(room) {
   if (!room) return null;
-  return {
+
+  if (room._safePayload && room._safePayloadVersion === room._payloadVersion) {
+    return room._safePayload;
+  }
+
+  const payload = {
     id: room.id,
     ownerId: room.ownerId,
     settings: room.settings,
@@ -325,6 +352,11 @@ function getSafeRoomPayload(room) {
     roundEndsAt: room.roundEndsAt,
     players: room.players.map(getSafePlayerPayload)
   };
+
+  room._safePayload = payload;
+  room._safePayloadVersion = room._payloadVersion;
+  return payload;
+
 }
 
 module.exports = {
@@ -338,4 +370,5 @@ module.exports = {
   resetMatch,
   getSafeRoomPayload,
   getSafePlayerPayload,
+  markRoomDirty,
 };
