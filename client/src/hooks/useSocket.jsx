@@ -45,20 +45,28 @@ export function useSocket() {
     }
 
     function onRoomUpdated(room) {
+      const activeRoomId = useGameStore.getState().roomId;
+      if (!activeRoomId || room?.id !== activeRoomId) return;
       setRoom(room);
     }
 
     function onRoundStarted(room) {
+      const activeRoomId = useGameStore.getState().roomId;
+      if (!activeRoomId || room?.id !== activeRoomId) return;
       setRoom(room);
       setRoundState('IN_ROUND', '');
     }
 
     function onRoundEnded({ room, targetWord, wordInfo }) {
+      const activeRoomId = useGameStore.getState().roomId;
+      if (!activeRoomId || room?.id !== activeRoomId) return;
       setRoom(room);
       setRoundState(room.state, targetWord, wordInfo || null);
     }
 
     function onPlayerUpdated({ player }) {
+      const activeRoomId = useGameStore.getState().roomId;
+      if (!activeRoomId) return;
       if (!player) return;
       updateRoomPlayer(player);
     }
@@ -69,6 +77,9 @@ export function useSocket() {
     }
 
     function onPresenceEvent(event) {
+      const path = window.location.pathname;
+      if (!path.startsWith('/room/') && path !== '/game') return;
+
       const state = useGameStore.getState();
       const currentRoom = state.room;
       if (!currentRoom || !event) return;

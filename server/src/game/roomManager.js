@@ -134,6 +134,11 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
     markRoomDirty(room);
     return { room, rejoined: true };
   }
+
+  // New players can only join while the room is in lobby state.
+  if (room.state !== 'LOBBY') {
+    return { error: 'Match already started. Wait for a new lobby.' };
+  }
   
   if (room.players.length >= room.settings.maxPlayers) {
     return { error: 'Room is full' };

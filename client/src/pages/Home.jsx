@@ -24,7 +24,11 @@ export default function Home() {
   const [showCreateSettings, setShowCreateSettings] = useState(false);
   const [formError, setFormError] = useState('');
   const navigate = useNavigate();
-  const { setPlayerName, setRoom } = useGameStore();
+  const setPlayerName = useGameStore((state) => state.setPlayerName);
+  const setRoom = useGameStore((state) => state.setRoom);
+  const roomId = useGameStore((state) => state.roomId);
+  const clearRoom = useGameStore((state) => state.clearRoom);
+  const clearToasts = useGameStore((state) => state.clearToasts);
 
   const resolvedName = (name || suggestedName).trim();
 
@@ -34,6 +38,14 @@ export default function Home() {
     if (!incomingRoom) return;
     setJoinCode(incomingRoom);
   }, [roomIdFromPath, location.search]);
+
+  useEffect(() => {
+    if (roomId) {
+      socket.emit('leave_room', {});
+    }
+    clearRoom();
+    clearToasts();
+  }, []);
 
   const regenerateSuggestion = () => {
     const nextName = getSuggestedUsername();

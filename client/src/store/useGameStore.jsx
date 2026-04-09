@@ -12,7 +12,26 @@ const useGameStore = create((set, get) => ({
   isDarkMode: false,
 
   setPlayerName: (name) => set({ playerName: name }),
-  setRoom: (room) => set({ room, roomId: room.id, roundState: room.state }),
+  setRoom: (room) => set((state) => {
+    if (!room) {
+      return {
+        room: null,
+        roomId: null,
+        roundState: 'LOBBY',
+        chat: [],
+        lastTargetWord: '',
+        lastWordInfo: null,
+      };
+    }
+
+    const switchedRoom = Boolean(state.roomId && state.roomId !== room.id);
+    return {
+      room,
+      roomId: room.id,
+      roundState: room.state,
+      chat: switchedRoom ? [] : state.chat,
+    };
+  }),
   updateRoomPlayer: (incomingPlayer) => set((state) => {
     if (!state.room || !incomingPlayer) return {};
 
@@ -40,6 +59,15 @@ const useGameStore = create((set, get) => ({
     return { lastWordInfo: wordInfo };
   }),
   addChatMessage: (msg) => set((state) => ({ chat: [...state.chat, msg] })),
+  clearChat: () => set({ chat: [] }),
+  clearRoom: () => set({
+    room: null,
+    roomId: null,
+    roundState: 'LOBBY',
+    chat: [],
+    lastTargetWord: '',
+    lastWordInfo: null,
+  }),
   pushToast: (message, tone = 'info') => {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     set((state) => ({
@@ -50,6 +78,7 @@ const useGameStore = create((set, get) => ({
   removeToast: (id) => set((state) => ({
     toasts: state.toasts.filter((toast) => toast.id !== id),
   })),
+  clearToasts: () => set({ toasts: [] }),
   
   toggleTheme: () => set((state) => {
     const isDark = !state.isDarkMode;

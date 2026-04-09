@@ -87,10 +87,27 @@ function tryEndRoundIfEligible(io, roomId) {
   }, 1200);
 }
 
+function leaveCurrentRoom(io, socket) {
+  const currentRoomId = socket.data.roomId;
+  if (!currentRoomId) return;
+
+  socket.leave(currentRoomId);
+  const updatedRoom = roomManager.leaveRoom(currentRoomId, socket.id);
+  if (updatedRoom) {
+    io.to(currentRoomId).emit('room_updated', roomManager.getSafeRoomPayload(updatedRoom));
+  }
+
+  socket.data.roomId = undefined;
+  socket.data.playerName = undefined;
+}
+
 function setupSockets(io) {
   io.on('connection', (socket) => {
     socket.on('create_room', ({ playerName, settings, playerKey }, callback) => {
       const safeName = sanitizePlayerName(playerName);
+      if (socket.data.roomId) {
+        leaveCurrentRoom(io, socket);
+      }
       // Create a short room ID
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const room = roomManager.createRoom(roomId, socket.id, safeName, { ...settings, playerKey });
@@ -105,6 +122,9 @@ function setupSockets(io) {
 
     socket.on('join_room', ({ roomId, playerName, playerKey }, callback) => {
       const safeName = sanitizePlayerName(playerName);
+      if (socket.data.roomId && socket.data.roomId !== roomId) {
+        leaveCurrentRoom(io, socket);
+      }
       const result = roomManager.joinRoom(roomId, socket.id, safeName, playerKey);
       if (result.error) {
         return callback({ error: result.error });
@@ -130,6 +150,10 @@ function setupSockets(io) {
         return callback?.({ error: 'Missing session data' });
       }
 
+      if (socket.data.roomId && socket.data.roomId !== roomId) {
+        leaveCurrentRoom(io, socket);
+      }
+
       const safeName = sanitizePlayerName(playerName);
       const result = roomManager.reconnectPlayer(roomId, playerKey, socket.id, safeName);
       if (result.error) {
@@ -149,6 +173,16 @@ function setupSockets(io) {
         playerId: findPublicIdBySocket(result.room, socket.id),
       });
       callback?.({ room: safeRoom, resumed: true });
+    });
+
+    socket.on('leave_room', (_payload, callback) => {
+      if (!socket.data.roomId) {
+        callback?.({ ok: true });
+        return;
+      }
+
+      leaveCurrentRoom(io, socket);
+      callback?.({ ok: true });
     });
 
     socket.on('chat_message', ({ text }) => {
