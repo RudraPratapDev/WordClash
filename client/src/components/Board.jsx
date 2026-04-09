@@ -1,6 +1,19 @@
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 function Board({ guesses, currentGuess, wordLength, isActive, isSubmittingGuess = false, invalidPulseKey = 0 }) {
+  const [showInvalidPulse, setShowInvalidPulse] = useState(false);
+
+  useEffect(() => {
+    if (invalidPulseKey <= 0) return;
+
+    setShowInvalidPulse(true);
+    const timeoutId = setTimeout(() => {
+      setShowInvalidPulse(false);
+    }, 360);
+
+    return () => clearTimeout(timeoutId);
+  }, [invalidPulseKey]);
+
   // Pad with empty rows to make 6 total rows
   const maxGuesses = 6;
   const rows = [];
@@ -23,13 +36,13 @@ function Board({ guesses, currentGuess, wordLength, isActive, isSubmittingGuess 
       const rowClasses = [
         'board-row',
         isSubmittingGuess ? 'is-submitting' : '',
-        invalidPulseKey > 0 ? 'is-invalid' : '',
+        showInvalidPulse ? 'is-invalid' : '',
       ]
         .filter(Boolean)
         .join(' ');
 
       rows.push(
-        <div key={`${i}_${invalidPulseKey}`} className={rowClasses}>
+        <div key={i} className={rowClasses}>
           {Array.from({ length: wordLength }).map((_, j) => (
             <div key={j} className={`tile ${currentLetters[j] ? 'filled' : ''}`}>
               {currentLetters[j] || ''}
