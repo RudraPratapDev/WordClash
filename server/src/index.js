@@ -19,6 +19,15 @@ app.use(cors({ origin: corsOrigin }));
 
 const server = http.createServer(app);
 
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
 const io = new Server(server, {
   cors: {
     origin: corsOrigin,

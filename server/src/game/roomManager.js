@@ -1,6 +1,8 @@
 const { getRandomWord, getWordPool } = require('./wordList');
 
 const RECONNECT_GRACE_MS = 30000;
+const IDLE_ROOM_TTL_MS = Number(process.env.IDLE_ROOM_TTL_MS || 30 * 60 * 1000);
+const ROOM_CLEANUP_INTERVAL_MS = Number(process.env.ROOM_CLEANUP_INTERVAL_MS || 10 * 60 * 1000);
 
 const AVATAR_SET = ['AX', 'BR', 'CT', 'DV', 'EL', 'FN', 'GK', 'HM', 'IR', 'JS', 'KV', 'LW', 'MX', 'NY', 'PZ', 'QR'];
 
@@ -48,9 +50,29 @@ const rooms = {};
 
 function markRoomDirty(room) {
   if (!room) return;
+  room.lastActivityAt = Date.now();
   room._payloadVersion = (room._payloadVersion || 0) + 1;
   room._safePayload = null;
   room._safePayloadVersion = -1;
+}
+
+function destroyRoom(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  if (room.roundTimer) {
+    clearTimeout(room.roundTimer);
+    room.roundTimer = null;
+  }
+
+  room.players.forEach((player) => {
+    if (player.disconnectTimer) {
+      clearTimeout(player.disconnectTimer);
+      player.disconnectTimer = null;
+    }
+  });
+
+  delete rooms[roomId];
 }
 
 function createRoom(roomId, ownerId, ownerName, settings) {
@@ -81,6 +103,7 @@ function createRoom(roomId, ownerId, ownerName, settings) {
     roundEndsAt: null,
     roundTimer: null,
     prefetchedWordInfo: null,
+    lastActivityAt: Date.now(),
     _payloadVersion: 0,
     _safePayloadVersion: -1,
     _safePayload: null,
@@ -98,6 +121,7 @@ function createRoom(roomId, ownerId, ownerName, settings) {
     disconnectTimer: null,
     guesses: [],
     hasGuessedCorrectly: false,
+    isGuessing: false,
     avatar: pickAvatar(room, ownerId),
   });
 
@@ -108,6 +132,10 @@ function createRoom(roomId, ownerId, ownerName, settings) {
 
 function getRoom(roomId) {
   return rooms[roomId];
+}
+
+function getAllRooms() {
+  return rooms;
 }
 
 function joinRoom(roomId, playerId, playerName, playerKey) {
@@ -159,6 +187,7 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
       disconnectTimer: null,
       guesses: [],
       hasGuessedCorrectly: false,
+      isGuessing: false,
       avatar: pickAvatar(room, playerId),
     });
     markRoomDirty(room);
@@ -170,15 +199,17 @@ function joinRoom(roomId, playerId, playerName, playerKey) {
 function leaveRoom(roomId, playerId) {
   const room = rooms[roomId];
   if (!room) return null;
+
+  const leavingPlayer = room.players.find((player) => player.id === playerId);
+  if (leavingPlayer?.disconnectTimer) {
+    clearTimeout(leavingPlayer.disconnectTimer);
+    leavingPlayer.disconnectTimer = null;
+  }
   
   room.players = room.players.filter(p => p.id !== playerId);
   
   if (room.players.length === 0) {
-    if (room.roundTimer) {
-      clearTimeout(room.roundTimer);
-      room.roundTimer = null;
-    }
-    delete rooms[roomId];
+    destroyRoom(roomId);
     return null; // Room deleted
   }
   
@@ -243,11 +274,7 @@ function markPlayerDisconnected(roomId, playerId, onExpired) {
     currentRoom.players = currentRoom.players.filter(p => p.playerKey !== target.playerKey);
 
     if (currentRoom.players.length === 0) {
-      if (currentRoom.roundTimer) {
-        clearTimeout(currentRoom.roundTimer);
-        currentRoom.roundTimer = null;
-      }
-      delete rooms[roomId];
+      destroyRoom(roomId);
       return;
     }
 
@@ -284,6 +311,7 @@ function prepareRound(roomId) {
   room.players.forEach(p => {
     p.guesses = [];
     p.hasGuessedCorrectly = false;
+    p.isGuessing = false;
   });
   
   room.state = 'IN_ROUND';
@@ -316,6 +344,7 @@ function resetMatch(roomId) {
     p.score = 0;
     p.guesses = [];
     p.hasGuessedCorrectly = false;
+    p.isGuessing = false;
   });
 
   markRoomDirty(room);
@@ -364,9 +393,34 @@ function getSafeRoomPayload(room) {
 
 }
 
+const ROOM_CLEANUP_HANDLE_KEY = '__wordClashRoomCleanupInterval';
+
+if (!global[ROOM_CLEANUP_HANDLE_KEY]) {
+  const roomCleanupInterval = setInterval(() => {
+    const now = Date.now();
+
+    Object.entries(rooms).forEach(([roomId, room]) => {
+      const isIdleState = room.state === 'LOBBY' || room.state === 'GAME_OVER';
+      if (!isIdleState) return;
+
+      const lastActivity = room.lastActivityAt || 0;
+      if (now - lastActivity <= IDLE_ROOM_TTL_MS) return;
+
+      destroyRoom(roomId);
+    });
+  }, ROOM_CLEANUP_INTERVAL_MS);
+
+  if (typeof roomCleanupInterval.unref === 'function') {
+    roomCleanupInterval.unref();
+  }
+
+  global[ROOM_CLEANUP_HANDLE_KEY] = roomCleanupInterval;
+}
+
 module.exports = {
   createRoom,
   getRoom,
+  getAllRooms,
   joinRoom,
   leaveRoom,
   reconnectPlayer,
@@ -376,4 +430,5 @@ module.exports = {
   getSafeRoomPayload,
   getSafePlayerPayload,
   markRoomDirty,
+  destroyRoom,
 };
