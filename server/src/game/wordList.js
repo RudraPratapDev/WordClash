@@ -16,6 +16,7 @@ const validityCache = new Map();
 const insightCache = new Map();
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const INSIGHT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const VALIDATION_MAX_WAIT_MS = Number(process.env.WORD_VALIDATION_MAX_WAIT_MS || 1800);
 
 function getWordPool(length) {
   if (length === 4) return TARGET_WORDS_4;
@@ -72,7 +73,7 @@ function writeInsightCache(word, value) {
   insightCache.set(word, { value, ts: Date.now() });
 }
 
-async function fetchWithTimeout(url, timeoutMs = Number(process.env.WORD_VALIDATION_TIMEOUT_MS || 5000)) {
+async function fetchWithTimeout(url, timeoutMs = Number(process.env.WORD_VALIDATION_TIMEOUT_MS || 1500)) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -247,6 +248,44 @@ async function validateWiktionary(word) {
   }
 }
 
+function validateAgainstApisWithEarlySuccess(word) {
+  const validators = [
+    validateFreeDictionaryApi,
+    validateDictionaryApiDev,
+    validateDatamuse,
+    validateWiktionary,
+  ];
+
+  return new Promise((resolve) => {
+    let pending = validators.length;
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    for (const validate of validators) {
+      validate(word)
+        .then((ok) => {
+          if (ok) {
+            finish(true);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          pending -= 1;
+          if (pending === 0) {
+            finish(false);
+          }
+        });
+    }
+
+    setTimeout(() => finish(false), VALIDATION_MAX_WAIT_MS);
+  });
+}
+
 async function isValidWord(word, expectedLength) {
   const upper = (word || '').toUpperCase().trim();
   const len = upper.length;
@@ -261,15 +300,8 @@ async function isValidWord(word, expectedLength) {
   const cached = readCache(upper);
   if (cached !== null) return cached;
 
-  // Fallback path: validate against multiple free dictionary APIs in parallel.
-  const checks = await Promise.allSettled([
-    validateFreeDictionaryApi(upper),
-    validateDictionaryApiDev(upper),
-    validateDatamuse(upper),
-    validateWiktionary(upper),
-  ]);
-
-  const valid = checks.some(result => result.status === 'fulfilled' && result.value === true);
+  // Fallback path: resolve as soon as any API confirms validity.
+  const valid = await validateAgainstApisWithEarlySuccess(upper);
   writeCache(upper, valid);
 
   return valid;
