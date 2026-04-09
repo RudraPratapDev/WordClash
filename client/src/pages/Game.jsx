@@ -15,7 +15,6 @@ export default function Game() {
   const roundState = useGameStore((state) => state.roundState);
   const lastTargetWord = useGameStore((state) => state.lastTargetWord);
   const lastWordInfo = useGameStore((state) => state.lastWordInfo);
-  const setRoundState = useGameStore((state) => state.setRoundState);
   const navigate = useNavigate();
 
   const [currentGuess, setCurrentGuess] = useState('');
@@ -226,8 +225,7 @@ export default function Game() {
 
   const handlePlayAgain = () => {
     if (!room || socket.id !== room.ownerId) return;
-    setRoundState('IN_ROUND');
-    socket.emit('start_game');
+    socket.emit('start_game', () => {});
   };
 
   return (

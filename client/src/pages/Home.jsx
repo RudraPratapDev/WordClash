@@ -30,7 +30,6 @@ export default function Home() {
   const setPlayerName = useGameStore((state) => state.setPlayerName);
   const setMatchMode = useGameStore((state) => state.setMatchMode);
   const setRoom = useGameStore((state) => state.setRoom);
-  const setRoundState = useGameStore((state) => state.setRoundState);
   const roomId = useGameStore((state) => state.roomId);
   const clearRoom = useGameStore((state) => state.clearRoom);
   const clearToasts = useGameStore((state) => state.clearToasts);
@@ -195,9 +194,13 @@ export default function Home() {
 
       saveSession({ roomId: room.id, playerName: resolvedName, playerKey, matchMode: 'solo' });
       setRoom(room);
-      setRoundState('IN_ROUND');
-      socket.emit('start_game');
-      navigate('/game');
+      socket.emit('start_game', (startResponse) => {
+        if (startResponse?.error) {
+          setFormError(startResponse.error);
+          return;
+        }
+        navigate('/game');
+      });
     });
   };
 
