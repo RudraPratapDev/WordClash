@@ -102,6 +102,7 @@ export default function Game() {
   const opponents = room.players.filter(p => p.id !== socket.id);
   const opponentCount = opponents.length;
   const opponentCountClass = `count-${Math.min(opponentCount, 4)}`;
+  const showChat = room.players.length > 1;
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
   const myRank = sortedPlayers.findIndex(p => p.id === me?.id) + 1;
   const winnerScore = sortedPlayers[0]?.score ?? 0;
@@ -246,7 +247,10 @@ export default function Game() {
               <strong>{iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
               <p>{endLine}</p>
               <p>Final word was <strong>{lastTargetWord}</strong></p>
-              <div style={{ marginTop: '10px' }}>
+              <div className="end-actions">
+                <button className="btn btn-secondary" onClick={() => navigate(`/room/${room.id}`)}>
+                  Back To Lobby
+                </button>
                 <button className="btn" onClick={() => navigate('/')}>Back Home</button>
               </div>
             </div>
@@ -260,9 +264,9 @@ export default function Game() {
         <Keyboard onKeyPress={handleKeyPress} usedKeys={usedKeys} disabled={isSubmittingGuess} />
       </div>
 
-      <aside className="right-stack">
+      <aside className={`right-stack ${showChat ? '' : 'solo-right'}`}>
         <Leaderboard />
-        <ChatPanel />
+        {showChat && <ChatPanel />}
       </aside>
 
       {isWordModalOpen && lastTargetWord && (

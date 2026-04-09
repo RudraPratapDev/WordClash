@@ -722,6 +722,11 @@ select.input {
   padding: 10px 14px;
 }
 
+.status-banner.end-banner {
+  width: min(680px, 100%);
+  margin-inline: auto;
+}
+
 .word-modal-overlay {
   position: fixed;
   inset: 0;
@@ -772,6 +777,14 @@ select.input {
 .end-banner p {
   margin-top: 6px;
   color: var(--text-muted);
+}
+
+.end-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .end-banner.winner {
@@ -951,6 +964,10 @@ select.input {
   grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.15fr);
   height: 100%;
   min-height: 0;
+}
+
+.right-stack.solo-right {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .module {
