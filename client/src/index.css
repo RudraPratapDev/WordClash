@@ -595,6 +595,10 @@ select.input {
   min-height: 0;
 }
 
+.game-layout.solo-match {
+  grid-template-columns: 280px 1fr;
+}
+
 .side-card {
   padding: 16px;
   height: auto;
@@ -786,6 +790,97 @@ select.input {
   justify-content: center;
   flex-wrap: wrap;
 }
+
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(17, 10, 6, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.game-over-modal {
+  width: min(620px, 96vw);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow-pop);
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.game-over-modal strong {
+  font-size: 1.35rem;
+}
+
+.game-over-modal p {
+  color: var(--text-muted);
+}
+
+.game-over-modal.winner {
+  border-color: #d97a33;
+  background: linear-gradient(180deg, #ffe8c6 0%, #f8ddba 100%);
+}
+
+.game-over-modal.loser {
+  border-color: #7a4b2d;
+  background: linear-gradient(180deg, #f7efe3 0%, #efe0cd 100%);
+}
+
+.screen-fireworks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.firework-particle {
+  position: absolute;
+  top: -24px;
+  width: 10px;
+  height: 14px;
+  border-radius: 3px;
+  opacity: 0.95;
+  animation: fireworkBurst 2s ease-in-out infinite;
+}
+
+.firework-particle:nth-child(odd) {
+  background: #ff8f4a;
+}
+
+.firework-particle:nth-child(even) {
+  background: #5cae63;
+}
+
+.firework-particle:nth-child(1) { left: 2%; animation-delay: 0.1s; }
+.firework-particle:nth-child(2) { left: 7%; animation-delay: 0.36s; }
+.firework-particle:nth-child(3) { left: 12%; animation-delay: 0.21s; }
+.firework-particle:nth-child(4) { left: 17%; animation-delay: 0.7s; }
+.firework-particle:nth-child(5) { left: 22%; animation-delay: 0.52s; }
+.firework-particle:nth-child(6) { left: 27%; animation-delay: 0.82s; }
+.firework-particle:nth-child(7) { left: 32%; animation-delay: 0.13s; }
+.firework-particle:nth-child(8) { left: 37%; animation-delay: 0.64s; }
+.firework-particle:nth-child(9) { left: 42%; animation-delay: 0.44s; }
+.firework-particle:nth-child(10) { left: 47%; animation-delay: 0.31s; }
+.firework-particle:nth-child(11) { left: 52%; animation-delay: 0.9s; }
+.firework-particle:nth-child(12) { left: 57%; animation-delay: 0.26s; }
+.firework-particle:nth-child(13) { left: 62%; animation-delay: 0.56s; }
+.firework-particle:nth-child(14) { left: 67%; animation-delay: 0.78s; }
+.firework-particle:nth-child(15) { left: 72%; animation-delay: 0.34s; }
+.firework-particle:nth-child(16) { left: 77%; animation-delay: 0.96s; }
+.firework-particle:nth-child(17) { left: 82%; animation-delay: 0.18s; }
+.firework-particle:nth-child(18) { left: 86%; animation-delay: 0.6s; }
+.firework-particle:nth-child(19) { left: 90%; animation-delay: 0.42s; }
+.firework-particle:nth-child(20) { left: 93%; animation-delay: 0.72s; }
+.firework-particle:nth-child(21) { left: 95%; animation-delay: 0.28s; }
+.firework-particle:nth-child(22) { left: 97%; animation-delay: 0.54s; }
+.firework-particle:nth-child(23) { left: 99%; animation-delay: 0.86s; }
+.firework-particle:nth-child(24) { left: 5%; animation-delay: 1.05s; }
 
 .end-banner.winner {
   border-color: #d97a33;
@@ -1212,6 +1307,20 @@ select.input {
   }
 }
 
+@keyframes fireworkBurst {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(560deg) scale(1.1);
+    opacity: 0;
+  }
+}
+
 @keyframes timerPulse {
   0%,
   100% {
@@ -1227,6 +1336,11 @@ select.input {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 0.7fr) minmax(0, 1.3fr) minmax(0, 1fr);
     height: 100%;
+  }
+
+  .game-layout.solo-match {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 0.7fr) minmax(0, 1.3fr);
   }
 
   .right-stack {

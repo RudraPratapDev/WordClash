@@ -1,4 +1,7 @@
-export default function OpponentPanel({ player, wordLength }) {
+import { memo } from 'react';
+import { getPlayerBadge } from '../utils/playerIdentity';
+
+function OpponentPanel({ player, wordLength }) {
   const maxGuesses = 6;
   const rows = [];
 
@@ -30,7 +33,7 @@ export default function OpponentPanel({ player, wordLength }) {
     <article className={`opponent-card ${player.isOnline ? '' : 'is-offline'}`}>
       <div className="opponent-head">
         <span className="player-tag opponent-name">
-          <span className="avatar-dot small">{player.avatar || 'PL'}</span>
+          <span className="avatar-dot small">{getPlayerBadge(player)}</span>
           {player.name}
         </span>
         <span className="player-status-pack">
@@ -44,3 +47,5 @@ export default function OpponentPanel({ player, wordLength }) {
     </article>
   );
 }
+
+export default memo(OpponentPanel);

@@ -7,6 +7,7 @@ import Keyboard from '../components/Keyboard';
 import ChatPanel from '../components/ChatPanel';
 import Leaderboard from '../components/Leaderboard';
 import OpponentPanel from '../components/OpponentPanel';
+import { getPlayerBadge } from '../utils/playerIdentity';
 
 export default function Game() {
   const room = useGameStore((state) => state.room);
@@ -81,10 +82,16 @@ export default function Game() {
   }, [room?.roundEndsAt, roundState]);
 
   useEffect(() => {
-    if (lastTargetWord && (roundState === 'ROUND_ENDED' || roundState === 'GAME_OVER')) {
+    if (lastTargetWord && roundState === 'ROUND_ENDED') {
       setIsWordModalOpen(true);
     }
   }, [lastTargetWord, roundState]);
+
+  useEffect(() => {
+    if (roundState === 'IN_ROUND' || roundState === 'GAME_OVER') {
+      setIsWordModalOpen(false);
+    }
+  }, [roundState]);
 
   useEffect(() => {
     if (!soundEnabled || roundState !== 'IN_ROUND' || secondsLeft === null) return;
@@ -102,7 +109,9 @@ export default function Game() {
   const opponents = room.players.filter(p => p.id !== socket.id);
   const opponentCount = opponents.length;
   const opponentCountClass = `count-${Math.min(opponentCount, 4)}`;
-  const showChat = room.players.length > 1;
+  const isSoloMatch = room.players.length <= 1;
+  const showChat = !isSoloMatch;
+  const showLeaderboard = !isSoloMatch;
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
   const myRank = sortedPlayers.findIndex(p => p.id === me?.id) + 1;
   const winnerScore = sortedPlayers[0]?.score ?? 0;
@@ -200,7 +209,7 @@ export default function Game() {
   };
 
   return (
-    <section className="game-layout">
+    <section className={`game-layout ${isSoloMatch ? 'solo-match' : ''}`}>
       <aside className={`panel side-card ${opponentCount === 0 ? 'solo' : 'has-opponents'} ${opponentCountClass}`}>
         <h3 className="side-title">Opponents</h3>
         <div className="side-hud">
@@ -225,34 +234,14 @@ export default function Game() {
         <div className="round-banner">
           {me && (
             <p className="player-inline">
-              <span className="avatar-dot">{me.avatar || 'PL'}</span>
+              <span className="avatar-dot">{getPlayerBadge(me)}</span>
               Playing as {me.name}
             </p>
           )}
           <h2>Round {room.currentRound} / {room.settings.numRounds}</h2>
           {roundState === 'ROUND_ENDED' && (
             <div className="status-banner">
-              Round finished. Next round starts in a few seconds. Word was <strong>{lastTargetWord}</strong>
-            </div>
-          )}
-          {roundState === 'GAME_OVER' && (
-            <div className={`status-banner end-banner ${iAmWinner ? 'winner' : 'loser'}`}>
-              {iAmWinner && (
-                <div className="confetti-wrap" aria-hidden="true">
-                  {Array.from({ length: 14 }).map((_, i) => (
-                    <span key={i} className="confetti-piece"></span>
-                  ))}
-                </div>
-              )}
-              <strong>{iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
-              <p>{endLine}</p>
-              <p>Final word was <strong>{lastTargetWord}</strong></p>
-              <div className="end-actions">
-                <button className="btn btn-secondary" onClick={() => navigate(`/room/${room.id}`)}>
-                  Back To Lobby
-                </button>
-                <button className="btn" onClick={() => navigate('/')}>Back Home</button>
-              </div>
+              Round finished. Next round starts in a few seconds.
             </div>
           )}
         </div>
@@ -264,10 +253,35 @@ export default function Game() {
         <Keyboard onKeyPress={handleKeyPress} usedKeys={usedKeys} disabled={isSubmittingGuess} />
       </div>
 
-      <aside className={`right-stack ${showChat ? '' : 'solo-right'}`}>
-        <Leaderboard />
-        {showChat && <ChatPanel />}
-      </aside>
+      {(showLeaderboard || showChat) && (
+        <aside className={`right-stack ${showChat ? '' : 'solo-right'}`}>
+          {showLeaderboard && <Leaderboard />}
+          {showChat && <ChatPanel />}
+        </aside>
+      )}
+
+      {roundState === 'GAME_OVER' && (
+        <div className="game-over-overlay" role="dialog" aria-modal="true" aria-label="Match result">
+          {iAmWinner && (
+            <div className="screen-fireworks" aria-hidden="true">
+              {Array.from({ length: 24 }).map((_, i) => (
+                <span key={i} className="firework-particle"></span>
+              ))}
+            </div>
+          )}
+          <div className={`game-over-modal ${iAmWinner ? 'winner' : 'loser'}`}>
+            <strong>{iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
+            <p>{endLine}</p>
+            <p>Final word was <strong>{lastTargetWord}</strong></p>
+            <div className="end-actions">
+              <button className="btn btn-secondary" onClick={() => navigate(`/room/${room.id}`)}>
+                Back To Lobby
+              </button>
+              <button className="btn" onClick={() => navigate('/')}>Back Home</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isWordModalOpen && lastTargetWord && (
         <div className="word-modal-overlay" role="dialog" aria-modal="true" aria-label="Word meaning">
@@ -307,33 +321,84 @@ function playEndSfx(isWinner) {
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
 
-    const notes = isWinner
-      ? [523.25, 659.25, 783.99, 1046.5]
-      : [392.0, 329.63, 261.63];
+    if (isWinner) {
+      const fanfare = [523.25, 659.25, 783.99, 1046.5];
+      fanfare.forEach((frequency, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
-    notes.forEach((frequency, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = frequency;
 
-      osc.type = isWinner ? 'triangle' : 'sine';
-      osc.frequency.value = frequency;
+        const start = now + i * 0.12;
+        const end = start + 0.18;
 
-      const start = now + i * 0.12;
-      const end = start + 0.16;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
 
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.06, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(end);
+      });
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(end);
-    });
+      for (let i = 0; i < 6; i++) {
+        const pop = ctx.createOscillator();
+        const popGain = ctx.createGain();
+        const start = now + 0.2 + i * 0.09;
+        const end = start + 0.06;
+
+        pop.type = 'square';
+        pop.frequency.setValueAtTime(420 + Math.random() * 520, start);
+
+        popGain.gain.setValueAtTime(0.0001, start);
+        popGain.gain.exponentialRampToValueAtTime(0.05, start + 0.008);
+        popGain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+        pop.connect(popGain);
+        popGain.connect(ctx.destination);
+        pop.start(start);
+        pop.stop(end);
+      }
+    } else {
+      const wah = ctx.createOscillator();
+      const wahGain = ctx.createGain();
+
+      wah.type = 'sawtooth';
+      wah.frequency.setValueAtTime(360, now);
+      wah.frequency.exponentialRampToValueAtTime(120, now + 0.45);
+
+      wahGain.gain.setValueAtTime(0.0001, now);
+      wahGain.gain.exponentialRampToValueAtTime(0.06, now + 0.03);
+      wahGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+
+      wah.connect(wahGain);
+      wahGain.connect(ctx.destination);
+      wah.start(now);
+      wah.stop(now + 0.5);
+
+      const boing = ctx.createOscillator();
+      const boingGain = ctx.createGain();
+      const boingStart = now + 0.52;
+
+      boing.type = 'triangle';
+      boing.frequency.setValueAtTime(190, boingStart);
+      boing.frequency.exponentialRampToValueAtTime(130, boingStart + 0.2);
+
+      boingGain.gain.setValueAtTime(0.0001, boingStart);
+      boingGain.gain.exponentialRampToValueAtTime(0.05, boingStart + 0.02);
+      boingGain.gain.exponentialRampToValueAtTime(0.0001, boingStart + 0.22);
+
+      boing.connect(boingGain);
+      boingGain.connect(ctx.destination);
+      boing.start(boingStart);
+      boing.stop(boingStart + 0.24);
+    }
 
     setTimeout(() => {
       ctx.close().catch(() => {});
-    }, 1200);
+    }, 1400);
   } catch {
     // Ignore if autoplay/device policy blocks audio.
   }

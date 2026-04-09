@@ -4,6 +4,7 @@ import useGameStore from '../store/useGameStore';
 import { socket } from '../hooks/useSocket';
 import { Users, Clock, Hash, Dices, Copy } from 'lucide-react';
 import { useState } from 'react';
+import { getPlayerBadge } from '../utils/playerIdentity';
 
 export default function Lobby() {
   const room = useGameStore((state) => state.room);
@@ -79,7 +80,7 @@ export default function Lobby() {
               {room.players.map(p => (
                 <li key={p.publicId || p.id} className="meta-row">
                   <span className="player-tag">
-                    <span className="avatar-dot">{p.avatar || 'PL'}</span>
+                    <span className="avatar-dot">{getPlayerBadge(p)}</span>
                     {p.name}
                     {p.id === room.ownerId && <span className="role-badge">Leader</span>}
                     {!p.isOnline && <span className="presence-chip offline">Offline</span>}
