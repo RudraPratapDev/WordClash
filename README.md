@@ -41,6 +41,16 @@ One room code. One shared countdown. Zero chill.
 - Multiplayer Room: private lobby, custom settings, shared chaos.
 - Solo Blitz: quick start, clean focus, instant replay.
 
+## Screenshots
+
+### Home
+
+![Word Clash Home](docs/screenshots/home.png)
+
+### Gameplay
+
+![Word Clash Gameplay](docs/screenshots/gameplay.png)
+
 ## Live Version
 
 - https://word-clash-kappa.vercel.app/
