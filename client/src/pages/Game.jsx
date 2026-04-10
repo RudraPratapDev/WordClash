@@ -118,10 +118,10 @@ export default function Game() {
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
   const myRank = sortedPlayers.findIndex(p => p.id === me?.id) + 1;
   const winnerScore = sortedPlayers[0]?.score ?? 0;
-  const iAmWinner = roundState === 'GAME_OVER' && me && me.score === winnerScore;
+  const isSoloMode = matchMode === 'solo';
+  const iAmWinner = !isSoloMode && roundState === 'GAME_OVER' && me && me.score === winnerScore;
   const isUrgent = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 10;
   const isCritical = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 5;
-  const isSoloMode = matchMode === 'solo';
 
   const loserLines = [
     'You got roasted by the dictionary this round.',
@@ -137,7 +137,16 @@ export default function Game() {
     'Champion mode activated. GG.',
   ];
 
-  const endLine = iAmWinner
+  const soloLines = [
+    'Solid run. You vs the clock, and you held up.',
+    'Nice finish. Solo mode complete.',
+    'Clean run. Ready for another round?',
+    'Good pace and focus. Solo session done.',
+  ];
+
+  const endLine = isSoloMode
+    ? soloLines[room.currentRound % soloLines.length]
+    : iAmWinner
     ? winnerLines[room.currentRound % winnerLines.length]
     : loserLines[room.currentRound % loserLines.length];
 
@@ -308,7 +317,7 @@ export default function Game() {
             </div>
           )}
           <div className={`game-over-modal ${iAmWinner ? 'winner' : 'loser'}`}>
-            <strong>{iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
+            <strong>{isSoloMode ? 'Solo Run Complete' : iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
             <p>{endLine}</p>
             <p>Final word was <strong>{lastTargetWord}</strong></p>
             <div className="end-actions">

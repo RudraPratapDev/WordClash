@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import AboutDeveloper from './pages/AboutDeveloper';
+import NotFound from './pages/NotFound';
 import { useSocket } from './hooks/useSocket';
 import { Sun, Moon } from 'lucide-react';
 import useGameStore from './store/useGameStore';
@@ -42,6 +43,7 @@ function App() {
             <Route path="/room/:roomId" element={<Lobby />} />
             <Route path="/game" element={<Game />} />
             <Route path="/about-developer" element={<AboutDeveloper />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
         <ToastTray />
