@@ -128,6 +128,12 @@ export default function Game() {
     'Close enough to scare them. Not enough to beat them.',
     'The keyboard fought bravely. The score did not.',
     'Certified menace. Uncertified winner.',
+    'Better luck next time. The words won today.',
+    'Mission failed, we\'ll get \'em next time.',
+    'Outplayed by a bunch of letters.',
+    'A solid effort, but the leaderboard disagrees.',
+    'You stared into the vocabulary abyss, and it blinked first.',
+    'Not your best round, but revenge is always sweet.',
   ];
 
   const winnerLines = [
@@ -135,6 +141,12 @@ export default function Game() {
     'Word wizard unlocked. Respect collected.',
     'You did not just win, you styled on them.',
     'Champion mode activated. GG.',
+    'Absolute dominance. The dictionary bows to you.',
+    'Flawless victory. Are you cheating?',
+    'A masterful performance of lexical superiority.',
+    'They tried their best, but you are just built different.',
+    'Too fast, too furious, too good at words.',
+    'You dropped this 👑. What a phenomenal round.',
   ];
 
   const soloLines = [
@@ -142,6 +154,10 @@ export default function Game() {
     'Nice finish. Solo mode complete.',
     'Clean run. Ready for another round?',
     'Good pace and focus. Solo session done.',
+    'Brain training complete. You\'re getting sharper.',
+    'Beat the board like it owed you money. Good job.',
+    'Speed run verified. The dictionary didn\'t stand a chance.',
+    'A quiet victory, but a victory nonetheless.',
   ];
 
   const endLine = isSoloMode
