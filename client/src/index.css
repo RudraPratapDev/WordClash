@@ -54,10 +54,15 @@
   padding: 0;
 }
 
-html,
+html {
+  /* Use dvh when the browser supports it (avoids mobile browser chrome issues) */
+  height: 100%;
+}
+
 body,
 #root {
   min-height: 100%;
+  min-height: 100dvh;
 }
 
 body {
@@ -103,6 +108,7 @@ input {
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -235,6 +241,7 @@ body.game-no-scroll {
 
 body.game-no-scroll .app-shell {
   height: 100vh;
+  height: 100dvh;
 }
 
 body.game-no-scroll .page-wrap {
@@ -250,14 +257,17 @@ body.game-no-scroll .page-wrap {
 }
 
 .page-center {
+  /* Center on tall screens; allow graceful scroll on short screens */
   min-height: calc(100vh - 190px);
+  min-height: calc(100dvh - 190px);
   display: grid;
   place-items: center;
+  padding: 12px 0 24px;
 }
 
 .hero-card {
   width: min(530px, 100%);
-  padding: clamp(22px, 4vw, 40px);
+  padding: clamp(16px, 3.5vw, 40px);
 }
 
 .hero-title {
@@ -1467,6 +1477,110 @@ select.input {
   }
 }
 
+/* ========================================================
+   RESPONSIVE BREAKPOINTS
+   Only layout/sizing changes — no color, animation, or
+   logic changes. Mac stays identical; smaller screens adapt.
+   ======================================================== */
+
+/* --- Short viewport: Windows 768px–900px height laptops --- */
+/* Mac viewport is typically 900px+ usable, so this won't trigger on Mac */
+@media (max-height: 800px) {
+  .topbar {
+    padding: 12px 20px;
+    margin-top: 12px;
+  }
+
+  .page-wrap {
+    padding: 14px 0 18px;
+  }
+
+  body.game-no-scroll .page-wrap {
+    padding: 10px 0 10px;
+  }
+
+  .hero-card {
+    padding: 16px 22px;
+  }
+
+  .stack {
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  /* Tile shrink only kicks in for genuinely short screens */
+  .tile {
+    width: 2.95rem;
+    height: 2.95rem;
+    font-size: 1.25rem;
+  }
+
+  .keyboard {
+    gap: 6px;
+  }
+
+  .keyboard-row {
+    gap: 6px;
+  }
+
+  .key-btn {
+    height: 2.6rem;
+  }
+}
+
+@media (max-height: 680px) {
+  /* Very short screens: landscape phone, small budget laptop */
+  .topbar {
+    padding: 8px 16px;
+    margin-top: 8px;
+  }
+
+  .brand {
+    font-size: 1.5rem;
+  }
+
+  .topbar-kicker {
+    display: none;
+  }
+
+  .stack {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .round-banner h2 {
+    font-size: 1rem;
+  }
+
+  .player-inline {
+    display: none;
+  }
+
+  .tile {
+    width: 2.6rem;
+    height: 2.6rem;
+    font-size: 1.1rem;
+  }
+
+  .keyboard {
+    gap: 5px;
+  }
+
+  .keyboard-row {
+    gap: 5px;
+  }
+
+  .key-btn {
+    height: 2.3rem;
+    min-width: 2.1rem;
+  }
+
+  .key-btn.action {
+    min-width: 3.4rem;
+  }
+}
+
+/* --- Wide tablet / smaller laptop (≤1100px wide) --- */
 @media (max-width: 1100px) {
   .game-layout {
     grid-template-columns: 1fr;
@@ -1489,9 +1603,9 @@ select.input {
   .opponents-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
 }
 
+/* --- Tablet & small laptop (≤820px wide) --- */
 @media (max-width: 820px) {
   .topbar {
     flex-direction: column;
@@ -1529,24 +1643,439 @@ select.input {
     justify-content: center;
   }
 
+  /* Tiles/keyboard at tablet widths — use vh-aware clamp values */
   .tile {
-    width: 2.75rem;
-    height: 2.75rem;
-    font-size: 1.2rem;
+    width: clamp(2.3rem, 5vh, 2.9rem);
+    height: clamp(2.3rem, 5vh, 2.9rem);
+    font-size: clamp(1rem, 2vh, 1.25rem);
+    border-radius: 10px;
   }
 
   .keyboard-row {
-    gap: 5px;
+    gap: clamp(4px, 0.8vh, 6px);
   }
 
   .key-btn {
-    min-width: 2rem;
-    height: 2.5rem;
-    font-size: 0.85rem;
+    min-width: clamp(1.75rem, 3.8vw, 2.2rem);
+    height: clamp(2rem, 4.5vh, 2.6rem);
+    font-size: clamp(0.72rem, 1.4vh, 0.88rem);
   }
 
   .key-btn.action {
-    min-width: 3.2rem;
+    min-width: clamp(2.6rem, 5.5vw, 3.4rem);
     padding: 0 6px;
+    font-size: clamp(0.65rem, 1.2vh, 0.78rem);
+  }
+}
+
+/* ============================================================
+   MOBILE (≤480px) — full redesign for small screens
+   Only affects ≤480px viewports. Desktop/Mac untouched.
+   ============================================================ */
+@media (max-width: 480px) {
+
+  /* ---- NAVBAR: slim single-line strip ---- */
+  .container {
+    width: 94vw;
+  }
+
+  .topbar {
+    margin-top: 6px;
+    padding: 9px 14px;
+    border-radius: 14px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+    /* Slightly thinner border on mobile */
+    border-width: 1.5px;
+  }
+
+  /* Hide the kicker line — saves vertical space */
+  .topbar-kicker {
+    display: none;
+  }
+
+  /* Compact brand */
+  .brand {
+    font-size: 1.35rem;
+    letter-spacing: 0;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  /* Connection pill → tiny dot + text */
+  .connection-pill {
+    font-size: 0.64rem;
+    padding: 3px 7px;
+    letter-spacing: 0.04em;
+    border-width: 1.5px;
+  }
+
+  /* Nav link (Panda Den) — smaller pill */
+  .topbar-link {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    border-width: 1.5px;
+  }
+
+  /* Theme toggle — slightly smaller */
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-width: 1.5px;
+  }
+
+
+  /* ---- PAGE WRAP ---- */
+  .page-wrap {
+    padding: 8px 0 20px;
+  }
+
+
+  /* ---- HOME CARD ---- */
+  .page-center {
+    /* Don't force center on mobile — let it flow naturally */
+    display: block;
+    min-height: unset;
+    padding: 10px 0 20px;
+  }
+
+  .hero-card {
+    /* Full-width card, tight padding */
+    width: 100%;
+    padding: 20px 18px 22px;
+    border-radius: var(--radius-md);
+  }
+
+  .hero-title {
+    font-size: 1.65rem;
+    line-height: 1.15;
+  }
+
+  .hero-subtitle {
+    margin-top: 7px;
+    font-size: 0.86rem;
+    line-height: 1.4;
+  }
+
+  .stack {
+    gap: 11px;
+    margin-top: 18px;
+  }
+
+  /* Full-width buttons on mobile */
+  .btn {
+    width: 100%;
+    padding: 13px 16px;
+    font-size: 0.95rem;
+    text-align: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Row (Create + Solo side by side) → stays as row but equal width */
+  .row {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .row .btn,
+  .row .input {
+    flex: 1;
+  }
+
+  /* Input fields */
+  .input {
+    padding: 11px 12px;
+    font-size: 0.95rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .label {
+    font-size: 0.7rem;
+    margin-bottom: 4px;
+  }
+
+  .suggestion-row {
+    margin-bottom: 6px;
+  }
+
+  .suggestion-pill {
+    font-size: 0.7rem;
+  }
+
+  .ghost-btn {
+    font-size: 0.7rem;
+    padding: 5px 9px;
+  }
+
+  .divider {
+    font-size: 0.7rem;
+    margin: 2px 0;
+  }
+
+  /* Settings modal — full width on mobile */
+  .settings-modal {
+    width: 98vw;
+    max-height: 88vh;
+  }
+
+  .settings-modal-overlay {
+    padding: 8px;
+    align-items: flex-end; /* slides up from bottom on mobile */
+  }
+
+  .settings-modal {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    max-height: 82vh;
+  }
+
+  .create-panel {
+    border-radius: 0;
+    border: none;
+    padding: 16px 14px;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+
+  /* ---- GAME SCREEN ---- */
+
+  /* Allow natural scroll on mobile — no fixed height clipping */
+  body.game-no-scroll {
+    overflow: auto;
+  }
+
+  body.game-no-scroll .app-shell {
+    height: auto;
+    min-height: 100svh;
+  }
+
+  body.game-no-scroll .page-wrap {
+    overflow: visible;
+    padding: 8px 0 20px;
+  }
+
+  .game-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: auto;
+  }
+
+  .game-layout.solo-match {
+    grid-template-columns: unset;
+    grid-template-rows: unset;
+  }
+
+  /* Round info strip — compact single line */
+  .round-banner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .round-banner h2 {
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  /* Hide "Playing as" line on mobile — saves space */
+  .player-inline {
+    display: none;
+  }
+
+  /* Timer pill inline with round info */
+  .timer-pill {
+    margin-top: 0;
+    font-size: 0.72rem;
+    padding: 3px 9px;
+  }
+
+  .solo-head-tools {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .center-stage {
+    gap: 5px;
+    align-items: center;
+  }
+
+  /* Board tiles — scale by viewport width */
+  .tile {
+    width: clamp(2.15rem, 13.5vw, 2.65rem);
+    height: clamp(2.15rem, 13.5vw, 2.65rem);
+    font-size: clamp(0.95rem, 4.8vw, 1.2rem);
+    border-radius: 8px;
+    border-width: 1.5px;
+  }
+
+  .board-grid {
+    gap: 5px;
+  }
+
+  .board-row {
+    gap: 5px;
+  }
+
+  /* Keyboard — full width, vw-scaled keys */
+  .keyboard {
+    gap: 5px;
+    margin-top: 4px;
+    width: 100%;
+  }
+
+  .keyboard-row {
+    gap: 4px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .key-btn {
+    min-width: clamp(1.75rem, 8.8vw, 2.3rem);
+    height: clamp(2.1rem, 10vw, 2.75rem);
+    font-size: clamp(0.7rem, 3.2vw, 0.88rem);
+    border-radius: 8px;
+    border-width: 1.5px;
+  }
+
+  .key-btn.action {
+    min-width: clamp(2.7rem, 12.5vw, 3.6rem);
+    padding: 0 4px;
+    font-size: clamp(0.62rem, 2.6vw, 0.76rem);
+  }
+
+  /* Feedback text */
+  .feedback-text {
+    font-size: 0.8rem;
+    min-height: 14px;
+  }
+
+  /* Side panels (opponents, leaderboard, chat) — compact on mobile */
+  .side-card {
+    padding: 10px 12px;
+    max-height: 160px;
+    border-radius: var(--radius-md);
+  }
+
+  .right-stack {
+    height: auto;
+    gap: 8px;
+    grid-template-rows: auto auto;
+  }
+
+  .module-head {
+    padding: 8px 12px;
+    font-size: 0.88rem;
+  }
+
+  .module-body {
+    padding: 8px 10px;
+  }
+
+  /* Status banner on game end */
+  .status-banner {
+    font-size: 0.86rem;
+    padding: 8px 10px;
+  }
+
+  /* Game over modal — edge to edge on mobile */
+  .game-over-overlay {
+    padding: 10px 8px;
+    align-items: flex-end;
+  }
+
+  .game-over-modal {
+    width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    padding: 16px 14px;
+  }
+
+  .game-over-modal strong {
+    font-size: 1.15rem;
+  }
+
+  .game-over-modal p {
+    font-size: 0.88rem;
+  }
+
+  .end-actions {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .end-actions .btn {
+    padding: 11px 14px;
+    font-size: 0.88rem;
+  }
+
+  /* Word meaning modal */
+  .word-modal-overlay {
+    padding: 10px 8px;
+    align-items: flex-end;
+  }
+
+  .word-modal-card {
+    width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    padding: 14px 14px 20px;
+  }
+
+  /* Toast — bottom center on mobile */
+  .toast-tray {
+    right: 8px;
+    left: 8px;
+    bottom: 12px;
+    max-width: unset;
+  }
+
+  .toast-card {
+    font-size: 0.86rem;
+    padding: 9px 12px;
+  }
+
+  /* Lobby */
+  .lobby-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lobby-card {
+    padding: 16px 14px;
+  }
+
+  .info-list li {
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+
+  .room-code {
+    font-size: 0.9rem;
+    padding: 5px 12px;
+  }
+
+  /* Notfound */
+  .notfound-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notfound-actions .btn,
+  .notfound-actions .ghost-btn {
+    justify-content: center;
   }
 }
