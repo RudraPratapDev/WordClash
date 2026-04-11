@@ -18,38 +18,49 @@ export function useSocket() {
   const setWordInsight = useGameStore((state) => state.setWordInsight);
   const updateRoomPlayer = useGameStore((state) => state.updateRoomPlayer);
   const pushToast = useGameStore((state) => state.pushToast);
+  const clearRoom = useGameStore((state) => state.clearRoom);
+  const setResumePrompt = useGameStore((state) => state.setResumePrompt);
+  const setDisplacedPrompt = useGameStore((state) => state.setDisplacedPrompt);
+  const setTakeoverPrompt = useGameStore((state) => state.setTakeoverPrompt);
 
   useEffect(() => {
+    // Only show session prompts on the very first connect, not on socket.io auto-reconnects.
+    let sessionHandled = false;
+
     socket.connect();
 
     function onConnect() {
       setIsConnected(true);
 
+      // If we already have an active room in store, this is an auto-reconnect mid-session — skip prompts.
+      if (useGameStore.getState().roomId) return;
+
+      // Only handle session once per page load.
+      if (sessionHandled) return;
+      sessionHandled = true;
+
       const path = (window.location.pathname || '').toLowerCase();
-      const shouldResume = path.startsWith('/room/') || path === '/game';
-      if (!shouldResume) {
-        return;
-      }
-
       const session = getSession();
-      if (session?.roomId && session?.playerKey) {
-        setMatchMode(session.matchMode === 'solo' ? 'solo' : 'multiplayer');
-        socket.emit('resume_session', session, (response) => {
-          if (response?.error) {
-            clearSession();
-            return;
-          }
+      if (!session?.roomId || !session?.playerKey) return;
 
-          if (response?.room) {
-            setRoom(response.room);
-            setRoundState(response.room.state, '');
-          }
-        });
+      setMatchMode(session.matchMode === 'solo' ? 'solo' : 'multiplayer');
+
+      if (path.startsWith('/room/') || path === '/game') {
+        setResumePrompt(session);
+      } else {
+        setTakeoverPrompt(session);
       }
     }
 
     function onDisconnect() {
       setIsConnected(false);
+    }
+
+    function onSessionDisplaced() {
+      clearSession();
+      // Don't clearRoom yet — Game.jsx watches room and would navigate away.
+      // Just set the flag; the prompt overlay will handle navigation.
+      setDisplacedPrompt(true);
     }
 
     function onRoomUpdated(room) {
@@ -88,6 +99,9 @@ export function useSocket() {
       const state = useGameStore.getState();
       if (!event?.roomId || !state.roomId || event.roomId !== state.roomId) return;
 
+      // If we've been displaced, suppress all presence toasts — we're leaving anyway.
+      if (state.displacedPrompt) return;
+
       const currentRoom = state.room;
       if (!currentRoom || !event) return;
 
@@ -124,6 +138,7 @@ export function useSocket() {
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('session_displaced', onSessionDisplaced);
     socket.on('room_updated', onRoomUpdated);
     socket.on('round_started', onRoundStarted);
     socket.on('round_ended', onRoundEnded);
@@ -135,6 +150,7 @@ export function useSocket() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('session_displaced', onSessionDisplaced);
       socket.off('room_updated', onRoomUpdated);
       socket.off('round_started', onRoundStarted);
       socket.off('round_ended', onRoundEnded);

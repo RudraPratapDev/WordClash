@@ -8,6 +8,7 @@ import { useSocket } from './hooks/useSocket';
 import { Sun, Moon } from 'lucide-react';
 import useGameStore from './store/useGameStore';
 import ToastTray from './components/ToastTray';
+import SessionPrompts from './components/SessionPrompts';
 import './index.css';
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
           </Routes>
         </main>
         <ToastTray />
+        <SessionPrompts />
       </div>
     </BrowserRouter>
   );

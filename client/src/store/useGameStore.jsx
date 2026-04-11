@@ -11,9 +11,24 @@ const useGameStore = create((set, get) => ({
   lastTargetWord: '',
   lastWordInfo: null,
   isDarkMode: false,
+  resumePrompt: null,      // session data to resume, or null
+  displacedPrompt: false,  // true when kicked by another tab
+  restoredGuesses: null,   // full { word, statuses }[] restored from session on resume
+  takeoverPrompt: null,    // session data when a new tab detects an active session
+  pendingGuesses: [],      // current round guesses persisted for cross-reload restore
 
   setPlayerName: (name) => set({ playerName: name }),
   setMatchMode: (mode) => set({ matchMode: mode === 'solo' ? 'solo' : 'multiplayer' }),
+  setResumePrompt: (session) => set({ resumePrompt: session }),
+  clearResumePrompt: () => set({ resumePrompt: null }),
+  setDisplacedPrompt: (val) => set({ displacedPrompt: val }),
+  clearDisplacedPrompt: () => set({ displacedPrompt: false }),
+  setRestoredGuesses: (guesses) => set({ restoredGuesses: guesses }),
+  clearRestoredGuesses: () => set({ restoredGuesses: null }),
+  setPendingGuesses: (guesses) => set({ pendingGuesses: guesses }),
+  clearPendingGuesses: () => set({ pendingGuesses: [] }),
+  setTakeoverPrompt: (session) => set({ takeoverPrompt: session }),
+  clearTakeoverPrompt: () => set({ takeoverPrompt: null }),
   setRoom: (room) => set((state) => {
     if (!room) {
       return {
@@ -71,6 +86,11 @@ const useGameStore = create((set, get) => ({
     chat: [],
     lastTargetWord: '',
     lastWordInfo: null,
+    resumePrompt: null,
+    displacedPrompt: false,
+    restoredGuesses: null,
+    takeoverPrompt: null,
+    pendingGuesses: [],
   }),
   pushToast: (message, tone = 'info') => {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
