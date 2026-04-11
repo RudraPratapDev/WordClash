@@ -241,23 +241,6 @@ async function getWordInsight(word) {
   return insight;
 }
 
-async function validateDatamuse(word) {
-  try {
-    const response = await fetchWithTimeout(`https://api.datamuse.com/words?sp=${word.toLowerCase()}&max=1000`);
-    if (!response.ok) {
-      if (isServiceErrorStatus(response.status)) throw new Error(`datamuse status ${response.status}`);
-      return false;
-    }
-
-    const data = await response.json();
-    if (!Array.isArray(data)) return false;
-
-    return data.some(entry => (entry.word || '').toUpperCase() === word);
-  } catch (error) {
-    throw error;
-  }
-}
-
 async function validateWiktionary(word) {
   try {
     const response = await fetchWithTimeout(`https://en.wiktionary.org/api/rest_v1/page/definition/${word.toLowerCase()}`);
@@ -278,7 +261,6 @@ function validateAgainstApisWithEarlySuccess(word) {
   const validators = [
     validateFreeDictionaryApi,
     validateDictionaryApiDev,
-    validateDatamuse,
     validateWiktionary,
   ];
 
