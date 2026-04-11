@@ -1,6 +1,6 @@
 const { getRandomWord, getWordPool } = require('./wordList');
 
-const RECONNECT_GRACE_MS = 30000;
+const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS || 30000);
 const IDLE_ROOM_TTL_MS = Number(process.env.IDLE_ROOM_TTL_MS || 30 * 60 * 1000);
 const ROOM_CLEANUP_INTERVAL_MS = Number(process.env.ROOM_CLEANUP_INTERVAL_MS || 10 * 60 * 1000);
 
@@ -295,6 +295,10 @@ function markPlayerDisconnected(roomId, playerId, onExpired) {
 function prepareRound(roomId) {
   const room = rooms[roomId];
   if (!room) return null;
+
+  // Don't start a round if nobody is online — room will be cleaned up naturally.
+  const onlinePlayers = room.players.filter(p => p.isOnline);
+  if (onlinePlayers.length === 0) return null;
 
   if (room.roundTimer) {
     clearTimeout(room.roundTimer);

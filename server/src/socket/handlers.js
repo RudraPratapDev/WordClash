@@ -90,6 +90,11 @@ function tryEndRoundIfEligible(io, roomId) {
   if (!room || room.state !== 'IN_ROUND' || room.roundEnding) return;
 
   const activePlayers = room.players.filter(p => p.isOnline);
+
+  // If everyone is offline, do nothing — the round timer keeps running and the
+  // 30s reconnect grace window gives players a chance to come back.
+  // If nobody reconnects, the disconnect timers will remove them and the room
+  // will be cleaned up naturally.
   if (activePlayers.length === 0) return;
 
   const allDone = activePlayers.every(p => p.hasGuessedCorrectly || p.guesses.length >= 6);
@@ -155,6 +160,19 @@ function setupSockets(io) {
       if (socket.data.roomId && socket.data.roomId !== normalizedRoomId) {
         leaveCurrentRoom(io, socket);
       }
+
+      // Displace any existing socket that owns this playerKey in this room.
+      const existingRoom = roomManager.getRoom(normalizedRoomId);
+      if (existingRoom && safePlayerKey) {
+        const existingPlayer = existingRoom.players.find(p => p.playerKey === safePlayerKey);
+        if (existingPlayer && existingPlayer.id !== socket.id) {
+          const oldSocket = io.sockets.sockets.get(existingPlayer.id);
+          if (oldSocket) {
+            oldSocket.emit('session_displaced');
+          }
+        }
+      }
+
       const result = roomManager.joinRoom(normalizedRoomId, socket.id, safeName, safePlayerKey);
       if (result.error) {
         return callback?.({ error: result.error });
@@ -186,6 +204,18 @@ function setupSockets(io) {
         leaveCurrentRoom(io, socket);
       }
 
+      // Displace any existing socket that owns this playerKey in this room.
+      const existingRoom = roomManager.getRoom(safeRoomId);
+      if (existingRoom && safePlayerKey) {
+        const existingPlayer = existingRoom.players.find(p => p.playerKey === safePlayerKey);
+        if (existingPlayer && existingPlayer.id !== socket.id) {
+          const oldSocket = io.sockets.sockets.get(existingPlayer.id);
+          if (oldSocket) {
+            oldSocket.emit('session_displaced');
+          }
+        }
+      }
+
       const safeName = sanitizePlayerName(playerName);
       const result = roomManager.reconnectPlayer(safeRoomId, safePlayerKey, socket.id, safeName);
       if (result.error) {
@@ -205,6 +235,20 @@ function setupSockets(io) {
         playerId: findPublicIdBySocket(result.room, socket.id),
       });
       callback?.({ room: safeRoom, resumed: true });
+
+      // If the room was stuck in ROUND_ENDED with no online players before this reconnect,
+      // kick off the next round now that someone is back.
+      if (result.room.state === 'ROUND_ENDED' && !result.room.roundTimer) {
+        setTimeout(() => {
+          const currentRoom = roomManager.getRoom(safeRoomId);
+          if (!currentRoom || currentRoom.state !== 'ROUND_ENDED') return;
+          const updatedRoom = roomManager.prepareRound(safeRoomId);
+          if (!updatedRoom) return;
+          io.to(safeRoomId).emit('round_started', roomManager.getSafeRoomPayload(updatedRoom));
+          prefetchRoundWordInsight(safeRoomId);
+          scheduleRoundTimer(io, safeRoomId);
+        }, 1500);
+      }
     });
 
     socket.on('leave_room', (_payload, callback) => {
@@ -400,7 +444,12 @@ function endRound(io, roomId, reason = 'unknown') {
       const currentRoom = roomManager.getRoom(roomId);
       if (!currentRoom || currentRoom.state !== 'ROUND_ENDED') return;
 
+      // Don't advance if nobody is online — wait for someone to reconnect.
+      const onlinePlayers = currentRoom.players.filter(p => p.isOnline);
+      if (onlinePlayers.length === 0) return;
+
       const updatedRoom = roomManager.prepareRound(roomId);
+      if (!updatedRoom) return;
       io.to(roomId).emit('round_started', roomManager.getSafeRoomPayload(updatedRoom));
       prefetchRoundWordInsight(roomId);
       scheduleRoundTimer(io, roomId);
