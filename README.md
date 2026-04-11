@@ -15,6 +15,7 @@
 
 ## Welcome To The Arena
 
+Grab a friend, make a room, and try to beat the clock.
 Word Clash is built for game-night energy.
 You and your friends race on the same timer, throw guesses under pressure, and climb the leaderboard one round at a time.
 

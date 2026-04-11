@@ -19,6 +19,8 @@
   --good: #5b7f3a;
   --warn: #bf7a1a;
   --bad: #6e6961;
+  --invalid-bg: #ffd6ce;
+  --invalid-color: #6a210f;
 
   --radius-sm: 10px;
   --radius-md: 16px;
@@ -43,6 +45,8 @@
   --good: #85b65a;
   --warn: #d6a24a;
   --bad: #9b948a;
+  --invalid-bg: #5b2b23;
+  --invalid-color: #ffd8cf;
 
   --shadow-card: 0 16px 34px rgba(0, 0, 0, 0.35);
   --shadow-pop: 0 10px 22px rgba(0, 0, 0, 0.45);
@@ -1047,14 +1051,9 @@ select.input {
 
 .board-row.is-invalid .tile.filled {
   border-color: var(--accent);
-  background: #ffd6ce;
-  color: #6a210f;
+  background: var(--invalid-bg);
+  color: var(--invalid-color);
   animation: tileInvalidFlash 360ms ease, rowInvalidShake 360ms ease;
-}
-
-.dark .board-row.is-invalid .tile.filled {
-  background: #5b2b23;
-  color: #ffd8cf;
 }
 
 .tile {
@@ -1863,13 +1862,15 @@ select.input {
   body.game-no-scroll .page-wrap {
     overflow: visible;
     padding: 8px 0 20px;
+    display: flex;
+    flex-direction: column;
   }
 
   .game-layout {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    height: auto;
+    flex: 1;
   }
 
   .game-layout.solo-match {
@@ -1914,6 +1915,7 @@ select.input {
   .center-stage {
     gap: 5px;
     align-items: center;
+    flex: 1;
   }
 
   /* Board tiles — scale by viewport width */
