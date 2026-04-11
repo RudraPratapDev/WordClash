@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useGameStore from '../store/useGameStore';
 import { socket } from '../hooks/useSocket';
+import { saveSession, getSession } from '../utils/session';
 import Board from '../components/Board';
 import Keyboard from '../components/Keyboard';
 import ChatPanel from '../components/ChatPanel';
@@ -15,13 +16,21 @@ export default function Game() {
   const roundState = useGameStore((state) => state.roundState);
   const lastTargetWord = useGameStore((state) => state.lastTargetWord);
   const lastWordInfo = useGameStore((state) => state.lastWordInfo);
+  const restoredGuesses = useGameStore((state) => state.restoredGuesses);
+  const clearRestoredGuesses = useGameStore((state) => state.clearRestoredGuesses);
+  const displacedPrompt = useGameStore((state) => state.displacedPrompt);
   const navigate = useNavigate();
 
   const [currentGuess, setCurrentGuess] = useState('');
   const [usedKeys, setUsedKeys] = useState({});
   const [myGuesses, setMyGuesses] = useState([]); // { word, statuses }[]
   const [feedback, setFeedback] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(() => {
+    // Initialize from room if available to avoid a flash of the full timeLimit on mount.
+    const endsAt = room?.roundEndsAt;
+    if (!endsAt || room?.state !== 'IN_ROUND') return null;
+    return Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  });
   const [isSubmittingGuess, setIsSubmittingGuess] = useState(false);
   const [invalidPulseKey, setInvalidPulseKey] = useState(0);
   const [isWordModalOpen, setIsWordModalOpen] = useState(false);
@@ -45,16 +54,60 @@ export default function Game() {
     };
   }, []);
 
+  // Restore board state after a page reload resume.
   useEffect(() => {
-    if (!room) {
+    if (!restoredGuesses || !restoredGuesses.length) return;
+    if (!room) return; // wait until room is set so we can mark the round as initialized
+
+    const wordLength = room.settings?.wordLength;
+    if (!wordLength) return;
+
+    const rebuilt = restoredGuesses.map((g) => ({
+      word: g.word || '?'.repeat(wordLength),
+      statuses: g.statuses,
+    }));
+    setMyGuesses(rebuilt);
+
+    // Rebuild keyboard hints only when we have the actual letters.
+    const iterUsed = {};
+    rebuilt.forEach(({ word, statuses }) => {
+      if (!word || word.includes('?')) return;
+      word.split('').forEach((letter, i) => {
+        const status = statuses[i];
+        const current = iterUsed[letter];
+        if (
+          status === 'correct' ||
+          (status === 'present' && current !== 'correct') ||
+          (status === 'absent' && current !== 'correct' && current !== 'present')
+        ) {
+          iterUsed[letter] = status;
+        }
+      });
+    });
+    setUsedKeys(iterUsed);
+
+    // Mark this round as already initialized so the round-reset effect
+    // doesn't immediately wipe the restored board.
+    if (room) {
+      initializedRoundKeyRef.current = `${room.id}:${room.currentRound}`;
+    }
+
+    clearRestoredGuesses();
+  }, [restoredGuesses, room]);
+
+  useEffect(() => {
+    // Don't navigate away if the displaced prompt is showing — it handles its own navigation.
+    if (!room && !displacedPrompt) {
       navigate('/');
-    } else if (roundState === 'LOBBY') {
+    } else if (room && roundState === 'LOBBY') {
       navigate(`/room/${room.id}`);
     }
 
     // Only reset per-round state once when a new round starts.
+    // Skip if we have restored guesses pending — the restore effect handles initialization.
     const roundKey = room ? `${room.id}:${room.currentRound}` : '';
-    if (roundState === 'IN_ROUND' && roundKey && initializedRoundKeyRef.current !== roundKey) {
+    const hasPendingRestore = useGameStore.getState().restoredGuesses?.length > 0;
+    if (roundState === 'IN_ROUND' && roundKey && initializedRoundKeyRef.current !== roundKey && !hasPendingRestore) {
       setCurrentGuess('');
       setUsedKeys({});
       setMyGuesses([]);
@@ -62,8 +115,11 @@ export default function Game() {
       setInvalidPulseKey(0);
       setIsSubmittingGuess(false);
       initializedRoundKeyRef.current = roundKey;
+      // Clear persisted guesses for the new round.
+      const session = getSession();
+      if (session) saveSession({ ...session, pendingGuesses: [] });
     }
-  }, [room, roundState, navigate]);
+  }, [room, roundState, navigate, displacedPrompt]);
 
   useEffect(() => {
     const roundEndsAt = room?.roundEndsAt;
@@ -105,7 +161,8 @@ export default function Game() {
     playTickSfx(secondsLeft <= 5);
   }, [secondsLeft, soundEnabled, roundState]);
 
-  if (!room) return null;
+  if (!room && !displacedPrompt) return null;
+  if (!room) return null; // displaced prompt is rendered by SessionPrompts in App.jsx
 
   const wordLength = room.settings.wordLength;
   const me = room.players.find(p => p.id === socket.id);
@@ -187,6 +244,7 @@ export default function Game() {
   // We are active if it's the round, and we haven't successfully guessed or exhausted 6 attempts.
   const isActive =
     roundState === 'IN_ROUND' &&
+    !displacedPrompt &&
     !isSubmittingGuess &&
     !myGuesses.some(g => g.statuses.every(s => s === 'correct')) &&
     myGuesses.length < 6;
@@ -230,7 +288,16 @@ export default function Game() {
         const statuses = response.statuses;
         setFeedback('');
 
-        setMyGuesses(prev => [...prev, { word: currentGuess, statuses }]);
+        const newGuess = { word: currentGuess, statuses };
+        setMyGuesses(prev => {
+          const updated = [...prev, newGuess];
+          // Persist guesses with letters to session so keyboard hints survive a reload.
+          const session = getSession();
+          if (session) {
+            saveSession({ ...session, pendingGuesses: updated });
+          }
+          return updated;
+        });
 
         const iterUsed = { ...usedKeys };
         currentGuess.split('').forEach((letter, i) => {
@@ -315,7 +382,7 @@ export default function Game() {
 
         {feedback && <p className="feedback-text">{feedback}</p>}
 
-        <Keyboard onKeyPress={handleKeyPress} usedKeys={usedKeys} disabled={isSubmittingGuess} />
+        <Keyboard onKeyPress={handleKeyPress} usedKeys={usedKeys} disabled={isSubmittingGuess || displacedPrompt} />
       </div>
 
       {(showLeaderboard || showChat) && (
