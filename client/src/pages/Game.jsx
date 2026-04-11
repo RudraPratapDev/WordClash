@@ -182,7 +182,8 @@ export default function Game() {
       setCurrentGuess(prev => prev.slice(0, -1));
     } else if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) {
-        setFeedback(`Word must be ${wordLength} letters`);
+        setInvalidPulseKey((prev) => prev + 1);
+        setFeedback('');
         return;
       }
 
@@ -201,7 +202,8 @@ export default function Game() {
           }
 
           if (response.error === 'Invalid word length') {
-            setFeedback(`Word must be ${wordLength} letters`);
+            setInvalidPulseKey((prev) => prev + 1);
+            setFeedback('');
             return;
           }
 
