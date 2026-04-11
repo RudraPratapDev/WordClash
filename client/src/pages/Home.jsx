@@ -4,7 +4,7 @@ import { socket } from '../hooks/useSocket';
 import useGameStore from '../store/useGameStore';
 import { Sparkles, Zap } from 'lucide-react';
 import { getSuggestedUsername } from '../utils/usernameSuggestions';
-import { clearSession, getPlayerKey, saveSession } from '../utils/session';
+import { clearSession, getPlayerKey, saveSession, getSavedPlayerName, savePlayerName } from '../utils/session';
 
 const PRESETS = {
   quick: { maxPlayers: 4, wordLength: 4, numRounds: 3, timeLimit: 120 },
@@ -16,8 +16,9 @@ export default function Home() {
   const { roomId: roomIdFromPath } = useParams();
   const location = useLocation();
   const initialSuggestion = useMemo(() => getSuggestedUsername(), []);
+  const savedName = useMemo(() => getSavedPlayerName(), []);
   const [suggestedName, setSuggestedName] = useState(initialSuggestion);
-  const [name, setName] = useState(initialSuggestion);
+  const [name, setName] = useState(savedName || initialSuggestion);
   const [joinCode, setJoinCode] = useState('');
   const [settings, setSettings] = useState(PRESETS.standard);
   const [preset, setPreset] = useState('standard');
@@ -62,7 +63,8 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
-    clearSession();
+    // Don't clear session here — useSocket's onConnect handles session detection
+    // and will set takeoverPrompt if an active session exists. Only clear toasts.
     clearToasts();
 
     const finalizeLeave = () => {
@@ -159,6 +161,7 @@ export default function Home() {
     setFormError('');
     setPlayerName(resolvedName);
     setMatchMode('multiplayer');
+    savePlayerName(resolvedName);
     const playerKey = getPlayerKey();
 
     socket.emit('create_room', { playerName: resolvedName, settings, playerKey }, (room) => {
@@ -181,6 +184,7 @@ export default function Home() {
     setFormError('');
     setPlayerName(resolvedName);
     setMatchMode('solo');
+    savePlayerName(resolvedName);
     const playerKey = getPlayerKey();
 
     // Solo mode still uses the multiplayer room pipeline for consistency.
@@ -213,6 +217,7 @@ export default function Home() {
     setFormError('');
     setPlayerName(resolvedName);
     setMatchMode('multiplayer');
+    savePlayerName(resolvedName);
     const playerKey = getPlayerKey();
     
     socket.emit('join_room', { roomId: joinCode.toUpperCase(), playerName: resolvedName, playerKey }, (response) => {
