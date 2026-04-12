@@ -109,7 +109,9 @@ export default function SessionPrompts() {
   };
 
   const handleTakeoverDismiss = () => {
-    // Don't clear session — user may want to rejoin later from this tab.
+    // User explicitly chose to stay on Home, so clear persisted session
+    // to avoid showing the same takeover prompt again after reload.
+    clearSession();
     clearTakeoverPrompt();
   };
 
