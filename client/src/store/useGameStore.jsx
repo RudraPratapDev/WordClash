@@ -1,6 +1,30 @@
 import { create } from 'zustand';
 
-const useGameStore = create((set, get) => ({
+const THEME_STORAGE = 'wordclash.theme';
+
+function applyThemeClass(isDark) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('dark', Boolean(isDark));
+}
+
+function readInitialDarkMode() {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE);
+    if (saved === 'dark') return true;
+    if (saved === 'light') return false;
+  } catch {
+    // Ignore storage access errors and fall back to media preference.
+  }
+
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
+const initialDarkMode = readInitialDarkMode();
+applyThemeClass(initialDarkMode);
+
+const useGameStore = create((set) => ({
   playerName: '',
   roomId: null,
   room: null,
@@ -10,7 +34,7 @@ const useGameStore = create((set, get) => ({
   roundState: 'LOBBY',
   lastTargetWord: '',
   lastWordInfo: null,
-  isDarkMode: false,
+  isDarkMode: initialDarkMode,
   resumePrompt: null,      // session data to resume, or null
   displacedPrompt: false,  // true when kicked by another tab
   restoredGuesses: null,   // full { word, statuses }[] restored from session on resume
@@ -106,10 +130,11 @@ const useGameStore = create((set, get) => ({
   
   toggleTheme: () => set((state) => {
     const isDark = !state.isDarkMode;
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    applyThemeClass(isDark);
+    try {
+      window.localStorage.setItem(THEME_STORAGE, isDark ? 'dark' : 'light');
+    } catch {
+      // Ignore storage access errors.
     }
     return { isDarkMode: isDark };
   }),

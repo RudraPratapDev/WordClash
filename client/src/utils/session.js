@@ -1,7 +1,7 @@
 const PLAYER_KEY_STORAGE = 'wordclash.playerKey';
 const SESSION_STORAGE = 'wordclash.session';
 const PLAYER_NAME_STORAGE = 'wordclash.playerName';
-const SESSION_TTL_MS = 1000 * 60 * 60 * 2; // 2 hours
+const SESSION_TTL_MS = 1000 * 60 * 30; // 30 minutes (aligned with server idle room TTL)
 
 function generatePlayerKey() {
   return `pk_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
@@ -25,7 +25,7 @@ export function getSession() {
     const raw = localStorage.getItem(SESSION_STORAGE);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Treat sessions older than 2 hours as expired — server room is gone by then anyway.
+    // Treat sessions older than 30 minutes as expired to match server room cleanup.
     if (parsed?.savedAt && Date.now() - parsed.savedAt > SESSION_TTL_MS) {
       localStorage.removeItem(SESSION_STORAGE);
       return null;
