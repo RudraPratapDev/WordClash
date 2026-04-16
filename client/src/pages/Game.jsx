@@ -19,6 +19,7 @@ export default function Game() {
   const restoredGuesses = useGameStore((state) => state.restoredGuesses);
   const clearRestoredGuesses = useGameStore((state) => state.clearRestoredGuesses);
   const displacedPrompt = useGameStore((state) => state.displacedPrompt);
+  const pushToast = useGameStore((state) => state.pushToast);
   const navigate = useNavigate();
 
   const [currentGuess, setCurrentGuess] = useState('');
@@ -34,6 +35,12 @@ export default function Game() {
   const [isSubmittingGuess, setIsSubmittingGuess] = useState(false);
   const [invalidPulseKey, setInvalidPulseKey] = useState(0);
   const [isWordModalOpen, setIsWordModalOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState('invalid');
+  const [reportReason, setReportReason] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReportWord, setSelectedReportWord] = useState('');
+  const [reportMessage, setReportMessage] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try {
       const saved = window.localStorage.getItem('wc_sound_enabled');
@@ -153,6 +160,25 @@ export default function Game() {
   }, [roundState]);
 
   useEffect(() => {
+    if (roundState !== 'GAME_OVER') return;
+    setReportCategory('invalid');
+    setReportReason('');
+    setIsSubmittingReport(false);
+    setIsReportModalOpen(false);
+    const recentWord = Array.isArray(room?.completedWords) && room.completedWords.length
+      ? room.completedWords[room.completedWords.length - 1]
+      : (lastTargetWord || '');
+    setSelectedReportWord(recentWord);
+    setReportMessage('');
+  }, [room?.id, room?.currentRound, roundState, lastTargetWord]);
+
+  useEffect(() => {
+    if (roundState !== 'GAME_OVER') {
+      setIsReportModalOpen(false);
+    }
+  }, [roundState]);
+
+  useEffect(() => {
     if (!soundEnabled || roundState !== 'IN_ROUND' || secondsLeft === null) return;
     if (secondsLeft > 10 || secondsLeft <= 0) return;
     if (lastTickSecondRef.current === secondsLeft) return;
@@ -179,6 +205,9 @@ export default function Game() {
   const iAmWinner = !isSoloMode && roundState === 'GAME_OVER' && me && me.score === winnerScore;
   const isUrgent = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 10;
   const isCritical = roundState === 'IN_ROUND' && secondsLeft !== null && secondsLeft <= 5;
+  const reportableWords = Array.isArray(room.completedWords) && room.completedWords.length
+    ? room.completedWords
+    : (lastTargetWord ? [lastTargetWord] : []);
 
   const loserLines = [
     'You got roasted by the dictionary this round.',
@@ -322,6 +351,51 @@ export default function Game() {
     socket.emit('start_game', () => {});
   };
 
+  const handleWordReportSubmit = (event) => {
+    event.preventDefault();
+    if (!room || roundState !== 'GAME_OVER') return;
+    if (isSubmittingReport) return;
+    if (!selectedReportWord) {
+      setReportMessage('Select a word to report.');
+      return;
+    }
+
+    setIsSubmittingReport(true);
+    setReportMessage('');
+
+    socket.emit(
+      'report_word',
+      {
+        category: reportCategory,
+        reasonText: reportReason,
+        reportedWords: [selectedReportWord],
+        clientVersion: import.meta.env.VITE_APP_VERSION || '',
+      },
+      (response = {}) => {
+        setIsSubmittingReport(false);
+
+        if (response.error) {
+          setReportMessage(response.error);
+          return;
+        }
+
+        const accepted = Array.isArray(response.accepted) ? response.accepted : [];
+        const duplicates = Array.isArray(response.duplicates) ? response.duplicates : [];
+
+        setReportMessage('');
+        setReportReason('');
+        setIsReportModalOpen(false);
+
+        if (duplicates.length) {
+          pushToast(`Submitted ${accepted.length}. ${duplicates.length} already reported by you.`, 'warn');
+          return;
+        }
+
+        pushToast(`Submitted ${accepted.length} word report${accepted.length > 1 ? 's' : ''}.`, 'good');
+      }
+    );
+  };
+
   return (
     <section className={`game-layout ${isSoloMatch ? 'solo-match' : ''}`}>
       {!isSoloMatch && (
@@ -405,6 +479,12 @@ export default function Game() {
             <strong>{isSoloMode ? 'Solo Run Complete' : iAmWinner ? 'You Win!' : `You placed #${myRank}`}</strong>
             <p>{endLine}</p>
             <p>Final word was <strong>{lastTargetWord}</strong></p>
+            <p className="report-subtle-row">
+              Spotted a bad word?{' '}
+              <button className="report-inline-trigger" type="button" onClick={() => setIsReportModalOpen(true)}>
+                Report
+              </button>
+            </p>
             <div className="end-actions">
               {isSoloMode ? (
                 <>
@@ -420,6 +500,77 @@ export default function Game() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isReportModalOpen && roundState === 'GAME_OVER' && (
+        <div className="word-modal-overlay report-overlay" role="dialog" aria-modal="true" aria-label="Report words">
+          <div className="word-modal-card report-mini-card">
+            <div className="word-modal-head">
+              <h3>Report Word</h3>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  setIsReportModalOpen(false);
+                  setReportMessage('');
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <form className="report-word-card" onSubmit={handleWordReportSubmit}>
+              <div className="report-word-grid">
+                <label className="report-word-field">
+                  <span>Word</span>
+                  <select
+                    value={selectedReportWord}
+                    onChange={(event) => setSelectedReportWord(event.target.value)}
+                    disabled={isSubmittingReport}
+                  >
+                    {reportableWords.map((word) => (
+                      <option key={word} value={word}>{word}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="report-word-field">
+                  <span>Reason</span>
+                  <select
+                    value={reportCategory}
+                    onChange={(event) => setReportCategory(event.target.value)}
+                    disabled={isSubmittingReport}
+                  >
+                    <option value="invalid">Invalid or uncommon word</option>
+                    <option value="misspelled">Misspelled</option>
+                    <option value="offensive">Offensive or abusive</option>
+                    <option value="proper_noun">Proper noun / brand / name</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="report-word-field">
+                  <span>Optional details</span>
+                  <textarea
+                    value={reportReason}
+                    onChange={(event) => setReportReason(event.target.value.slice(0, 300))}
+                    maxLength={300}
+                    rows={3}
+                    placeholder="Tell us what seems wrong (optional)"
+                    disabled={isSubmittingReport}
+                  />
+                </label>
+              </div>
+
+              <div className="report-word-foot">
+                <span className="report-word-counter">{reportReason.length}/300</span>
+                <button type="submit" className="btn btn-secondary" disabled={isSubmittingReport || !reportableWords.length || !selectedReportWord}>
+                  {isSubmittingReport ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </div>
+
+              {reportMessage && <p className="report-word-message error">{reportMessage}</p>}
+            </form>
           </div>
         </div>
       )}

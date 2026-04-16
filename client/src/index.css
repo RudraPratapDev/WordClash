@@ -286,6 +286,12 @@ body.game-no-scroll .page-wrap {
   font-size: 1rem;
 }
 
+.hero-meta-row {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -375,6 +381,77 @@ body.game-no-scroll .page-wrap {
 .settings-modal-panel {
   border-color: var(--line);
   box-shadow: var(--shadow-pop);
+}
+
+.howto-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 67;
+  background: rgba(24, 14, 9, 0.46);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.howto-modal {
+  width: min(760px, 96vw);
+  max-height: min(92vh, 840px);
+  overflow: auto;
+  padding: clamp(16px, 2.4vw, 22px);
+}
+
+.howto-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.howto-head h3 {
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+}
+
+.howto-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.howto-tile {
+  border: 2px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel-strong);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.howto-tile h4 {
+  font-size: 1rem;
+}
+
+.howto-tile p,
+.howto-tile li {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.howto-tile ul,
+.howto-tile ol {
+  margin-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.howto-steps {
+  border-color: var(--line);
+}
+
+.howto-note {
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .form-error {
@@ -904,6 +981,115 @@ select.input {
   gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.report-word-card {
+  margin-top: 10px;
+  border: 2px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.report-word-head {
+  display: grid;
+  gap: 2px;
+}
+
+.report-word-note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.report-mini-card {
+  width: min(460px, 96vw);
+}
+
+.report-word-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.report-word-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.84rem;
+}
+
+.report-word-field select,
+.report-word-field textarea {
+  width: 100%;
+  border: 2px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.report-word-field textarea {
+  resize: vertical;
+  min-height: 74px;
+}
+
+.report-word-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-word-counter {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.report-word-message {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.report-word-message.good {
+  color: var(--good);
+}
+
+.report-word-message.error {
+  color: var(--bad);
+}
+
+.report-subtle-row {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.report-subtle-row .report-inline-trigger {
+  display: inline;
+}
+
+.report-inline-trigger {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.88rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.report-inline-trigger:hover {
+  color: var(--text);
+}
+
+.report-overlay {
+  z-index: 82;
+  background: rgba(15, 11, 8, 0.55);
 }
 
 .game-over-overlay {
@@ -1690,6 +1876,10 @@ select.input {
     grid-template-columns: 1fr;
   }
 
+  .howto-grid {
+    grid-template-columns: 1fr;
+  }
+
   .notfound-actions {
     flex-direction: column;
     align-items: stretch;
@@ -1821,6 +2011,10 @@ select.input {
     line-height: 1.4;
   }
 
+  .hero-meta-row {
+    margin-top: 9px;
+  }
+
   .stack {
     gap: 11px;
     margin-top: 18px;
@@ -1881,6 +2075,18 @@ select.input {
   .settings-modal {
     width: 98vw;
     max-height: 88vh;
+  }
+
+  .howto-overlay {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
+  .howto-modal {
+    width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    max-height: 82vh;
+    padding: 16px 14px 20px;
   }
 
   .settings-modal-overlay {
@@ -2082,6 +2288,20 @@ select.input {
   .end-actions .btn {
     padding: 11px 14px;
     font-size: 0.88rem;
+  }
+
+  .report-word-card {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .report-word-foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-word-foot .btn {
+    width: 100%;
   }
 
   /* Word meaning modal */

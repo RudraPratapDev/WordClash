@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../hooks/useSocket';
 import useGameStore from '../store/useGameStore';
-import { Sparkles, Zap } from 'lucide-react';
+import { Sparkles, Zap, BookOpen } from 'lucide-react';
 import { getSuggestedUsername } from '../utils/usernameSuggestions';
 import { clearSession, getPlayerKey, saveSession, getSavedPlayerName, savePlayerName } from '../utils/session';
 
@@ -26,6 +26,7 @@ export default function Home() {
   const [soloPreset, setSoloPreset] = useState('standard');
   const [showCreateSettings, setShowCreateSettings] = useState(false);
   const [showSoloSettings, setShowSoloSettings] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [formError, setFormError] = useState('');
   const navigate = useNavigate();
   const setPlayerName = useGameStore((state) => state.setPlayerName);
@@ -37,15 +38,24 @@ export default function Home() {
 
   const resolvedName = (name || suggestedName).trim();
   const isSettingsModalOpen = showCreateSettings || showSoloSettings;
+  const isAnyModalOpen = isSettingsModalOpen || showHowToPlay;
 
   const openCreateSettings = () => {
+    setShowHowToPlay(false);
     setShowSoloSettings(false);
     setShowCreateSettings(true);
   };
 
   const openSoloSettings = () => {
+    setShowHowToPlay(false);
     setShowCreateSettings(false);
     setShowSoloSettings(true);
+  };
+
+  const openHowToPlay = () => {
+    setShowCreateSettings(false);
+    setShowSoloSettings(false);
+    setShowHowToPlay(true);
   };
 
   const closeSettingsModal = () => {
@@ -104,17 +114,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!isSettingsModalOpen) return;
+    if (!isAnyModalOpen) return;
 
     const handleEscClose = (event) => {
       if (event.key === 'Escape') {
+        setShowHowToPlay(false);
         closeSettingsModal();
       }
     };
 
     window.addEventListener('keydown', handleEscClose);
     return () => window.removeEventListener('keydown', handleEscClose);
-  }, [isSettingsModalOpen]);
+  }, [isAnyModalOpen]);
 
   const regenerateSuggestion = () => {
     const nextName = getSuggestedUsername();
@@ -236,6 +247,11 @@ export default function Home() {
       <div className="panel hero-card">
         <h2 className="hero-title">Beat the board, beat the room.</h2>
         <p className="hero-subtitle">Create a private lobby or join with a room code and race every round in real time.</p>
+        <div className="hero-meta-row">
+          <button className="ghost-btn" onClick={openHowToPlay} type="button">
+            <BookOpen size={14} /> How To Play
+          </button>
+        </div>
 
         <div className="stack">
           <div>
@@ -398,6 +414,58 @@ export default function Home() {
                 <button className="btn" onClick={handleSoloStart}>Start Solo Game</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showHowToPlay && (
+        <div className="howto-overlay" onClick={() => setShowHowToPlay(false)} role="dialog" aria-modal="true" aria-label="How to play">
+          <div className="panel howto-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="howto-head">
+              <div>
+                <p className="label">Word Clash Guide</p>
+                <h3>How To Play</h3>
+              </div>
+              <button type="button" className="ghost-btn" onClick={() => setShowHowToPlay(false)}>Close</button>
+            </div>
+
+            <div className="howto-grid">
+              <article className="howto-tile">
+                <h4>Your Goal</h4>
+                <p>Guess the hidden word before time runs out. Fewer tries and faster solves give better points.</p>
+              </article>
+
+              <article className="howto-tile">
+                <h4>Tile Colors</h4>
+                <ul>
+                  <li><strong>Green:</strong> right letter, right position</li>
+                  <li><strong>Amber:</strong> right letter, wrong position</li>
+                  <li><strong>Gray:</strong> letter not in the word</li>
+                </ul>
+              </article>
+
+              <article className="howto-tile howto-steps">
+                <h4>Round Flow</h4>
+                <ol>
+                  <li>Host or join a room with a code.</li>
+                  <li>Each round starts with a shared countdown.</li>
+                  <li>Everyone submits guesses in parallel.</li>
+                  <li>Round ends on timeout or when everyone is done.</li>
+                  <li>Highest total score wins the match.</li>
+                </ol>
+              </article>
+
+              <article className="howto-tile">
+                <h4>Pro Tips</h4>
+                <ul>
+                  <li>Use your first guess to reveal common letters quickly.</li>
+                  <li>Watch the keyboard colors to avoid wasted guesses.</li>
+                  <li>In multiplayer, speed matters as much as accuracy.</li>
+                </ul>
+              </article>
+            </div>
+
+            <p className="howto-note">Need custom pace? Use room presets or fine-tune rounds, word length, and timer before starting.</p>
           </div>
         </div>
       )}
