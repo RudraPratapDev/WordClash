@@ -381,6 +381,10 @@ function getSafeRoomPayload(room) {
     return room._safePayload;
   }
 
+  const completedWords = room.state === 'IN_ROUND'
+    ? room.usedWords.slice(0, -1)
+    : room.usedWords.slice();
+
   const payload = {
     id: room.id,
     ownerId: room.ownerId,
@@ -388,6 +392,7 @@ function getSafeRoomPayload(room) {
     state: room.state,
     currentRound: room.currentRound,
     roundEndsAt: room.roundEndsAt,
+    completedWords,
     players: room.players.map(getSafePlayerPayload)
   };
 

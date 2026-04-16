@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { setupSockets } = require('./socket/handlers');
+const { connectMongo, isMongoReady } = require('./db/mongo');
 
 const parseCorsOrigins = () => {
   const raw = process.env.CORS_ORIGINS || process.env.CLIENT_URL || '*';
@@ -37,10 +38,18 @@ const io = new Server(server, {
 
 // Basic health check route
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'word-clash-server' });
+  res.json({
+    status: 'ok',
+    service: 'word-clash-server',
+    mongodb: isMongoReady() ? 'connected' : 'disconnected',
+  });
 });
 
 setupSockets(io);
+
+// Do not block server start on DB availability. Gameplay remains live even if
+// Mongo reconnects later; report submissions will fail gracefully meanwhile.
+connectMongo();
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

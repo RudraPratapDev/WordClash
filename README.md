@@ -74,6 +74,23 @@ Environment basics:
 
 - Frontend uses `VITE_SOCKET_URL`
 - Backend uses `CORS_ORIGINS`
+- Backend uses `MONGODB_URI` for word-report persistence
+
+Recommended backend environment values:
+
+- `CORS_ORIGINS=http://localhost:5173`
+- `MONGODB_URI=mongodb://127.0.0.1:27017/wordclash` (local)
+- `MONGODB_URI=<atlas-connection-string>` (production/Atlas)
+- `WORD_REPORT_WINDOW_MS=600000`
+- `WORD_REPORT_MAX_PER_WINDOW=3`
+- `WORD_REPORT_HASH_SALT=<strong-random-secret>`
+
+Word reporting behavior:
+
+- Players can report words used in the completed match once game over is reached.
+- Reports are saved in MongoDB with deduplication and moderation status.
+- Duplicate reports from the same player for the same room/round/word are blocked.
+- Rate limiting is enforced per player and per network to reduce abuse.
 
 Run locally:
 

@@ -1,9 +1,20 @@
 const roomManager = require('../game/roomManager');
 const { validateGuess, calculateScore } = require('../game/gameLogic');
 const { isValidWord, isValidWordSync, getWordInsight } = require('../game/wordList');
+const {
+  REPORT_REASON_MAX_LENGTH,
+  saveWordReport,
+  sanitizeCategory,
+  sanitizeReasonText,
+} = require('../services/wordReportService');
 
 const MAX_ACTIVE_ROOMS = Number(process.env.MAX_ACTIVE_ROOMS || 150);
 const MAX_CHAT_LENGTH = Number(process.env.MAX_CHAT_LENGTH || 280);
+const WORD_REPORT_WINDOW_MS = Number(process.env.WORD_REPORT_WINDOW_MS || 10 * 60 * 1000);
+const WORD_REPORT_MAX_PER_WINDOW = Number(process.env.WORD_REPORT_MAX_PER_WINDOW || 3);
+
+const reportUserRateLimit = new Map();
+const reportIpRateLimit = new Map();
 
 function sanitizePlayerName(name) {
   const trimmed = (name || '').trim().slice(0, 20);
@@ -21,6 +32,77 @@ function sanitizeChatText(text) {
   if (typeof text !== 'string') return '';
   return text.replace(/\s+/g, ' ').trim().slice(0, MAX_CHAT_LENGTH);
 }
+
+function sanitizeReportedWords(input, fallbackWord) {
+  const words = [];
+
+  if (Array.isArray(input)) {
+    words.push(...input);
+  } else if (typeof input === 'string') {
+    words.push(input);
+  }
+
+  if (!words.length && fallbackWord) {
+    words.push(fallbackWord);
+  }
+
+  const normalized = words
+    .map((word) => (typeof word === 'string' ? word.trim().toUpperCase() : ''))
+    .filter(Boolean);
+
+  return [...new Set(normalized)].slice(0, 12);
+}
+
+function getClientIp(socket) {
+  const headerValue = socket?.handshake?.headers?.['x-forwarded-for'];
+  if (typeof headerValue === 'string' && headerValue.trim()) {
+    return headerValue.split(',')[0].trim();
+  }
+
+  const address = socket?.handshake?.address || socket?.conn?.remoteAddress || '';
+  return typeof address === 'string' ? address : '';
+}
+
+function consumeRateLimit(map, key, max, windowMs) {
+  const now = Date.now();
+  const safeKey = key || 'unknown';
+  const existing = map.get(safeKey);
+
+  if (!existing || now >= existing.resetAt) {
+    map.set(safeKey, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, remaining: max - 1, resetAt: now + windowMs };
+  }
+
+  if (existing.count >= max) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: existing.resetAt,
+    };
+  }
+
+  existing.count += 1;
+  map.set(safeKey, existing);
+  return {
+    allowed: true,
+    remaining: max - existing.count,
+    resetAt: existing.resetAt,
+  };
+}
+
+function sweepRateLimitMap(map) {
+  const now = Date.now();
+  for (const [key, value] of map.entries()) {
+    if (now >= value.resetAt) {
+      map.delete(key);
+    }
+  }
+}
+
+setInterval(() => {
+  sweepRateLimitMap(reportUserRateLimit);
+  sweepRateLimitMap(reportIpRateLimit);
+}, Math.max(60 * 1000, Math.floor(WORD_REPORT_WINDOW_MS / 2))).unref?.();
 
 function clearRoomTimer(room) {
   if (room?.roundTimer) {
@@ -274,6 +356,141 @@ function setupSockets(io) {
           timestamp: new Date().toISOString()
         });
       }
+    });
+
+    socket.on('report_word', async ({ category, reasonText, clientVersion, reportedWord, reportedWords } = {}, callback) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) {
+        return callback?.({ error: 'Not in a room.' });
+      }
+
+      const room = roomManager.getRoom(roomId);
+      if (!room) {
+        return callback?.({ error: 'Room not found.' });
+      }
+
+      if (room.state !== 'GAME_OVER') {
+        return callback?.({ error: 'Word can be reported only after the match ends.' });
+      }
+
+      const player = room.players.find((p) => p.id === socket.id);
+      if (!player) {
+        return callback?.({ error: 'Only players from this match can submit reports.' });
+      }
+
+      const playerKey = socket.data.playerKey || player.playerKey || '';
+      if (!playerKey) {
+        return callback?.({ error: 'Session key missing. Please refresh and try again.' });
+      }
+
+      const requestedWords = sanitizeReportedWords(reportedWords, reportedWord || room.targetWord);
+      if (!requestedWords.length) {
+        return callback?.({ error: 'Please select at least one word to report.' });
+      }
+
+      const matchWords = new Set((room.usedWords || []).map((word) => String(word || '').toUpperCase()));
+      const wordRoundMap = new Map(
+        (room.usedWords || []).map((word, index) => [String(word || '').toUpperCase(), index + 1])
+      );
+      const invalidSelection = requestedWords.some((word) => !matchWords.has(word));
+      if (invalidSelection) {
+        return callback?.({ error: 'One or more selected words are invalid for this match.' });
+      }
+
+      const invalidLength = requestedWords.some((word) => word.length < 4 || word.length > 6);
+      if (invalidLength) {
+        return callback?.({ error: 'One or more selected words have invalid length.' });
+      }
+
+      const userRateKey = `${roomId}:${player.playerKey || player.id}`;
+      const ipRateKey = `${roomId}:${getClientIp(socket)}`;
+
+      const accepted = [];
+      const duplicates = [];
+      const rejected = [];
+
+      for (const word of requestedWords) {
+        const byUser = consumeRateLimit(reportUserRateLimit, userRateKey, WORD_REPORT_MAX_PER_WINDOW, WORD_REPORT_WINDOW_MS);
+        if (!byUser.allowed) {
+          const retrySeconds = Math.max(1, Math.ceil((byUser.resetAt - Date.now()) / 1000));
+          return callback?.({
+            error: `Too many reports. Try again in ${retrySeconds}s.`,
+            accepted,
+            duplicates,
+            rejected: [...rejected, word],
+          });
+        }
+
+        const byIp = consumeRateLimit(reportIpRateLimit, ipRateKey, WORD_REPORT_MAX_PER_WINDOW * 2, WORD_REPORT_WINDOW_MS);
+        if (!byIp.allowed) {
+          const retrySeconds = Math.max(1, Math.ceil((byIp.resetAt - Date.now()) / 1000));
+          return callback?.({
+            error: `Too many reports from this network. Try again in ${retrySeconds}s.`,
+            accepted,
+            duplicates,
+            rejected: [...rejected, word],
+          });
+        }
+
+        const saveResult = await saveWordReport({
+          reportedWord: word,
+          category: sanitizeCategory(category),
+          reasonText: sanitizeReasonText(reasonText).slice(0, REPORT_REASON_MAX_LENGTH),
+          playerPublicId: player.publicId || 'unknown-player',
+          playerName: player.name || 'Player',
+          playerKey,
+          ipAddress: getClientIp(socket),
+          roomId,
+          currentRound: wordRoundMap.get(word) || room.currentRound,
+          numRounds: room.settings.numRounds,
+          wordLength: word.length,
+          matchStateAtReport: room.state,
+          userAgent: socket?.handshake?.headers?.['user-agent'] || '',
+          clientVersion,
+        });
+
+        if (saveResult.unavailable) {
+          return callback?.({ error: saveResult.message });
+        }
+
+        if (saveResult.duplicate) {
+          duplicates.push(word);
+          continue;
+        }
+
+        if (!saveResult.ok) {
+          rejected.push(word);
+          continue;
+        }
+
+        accepted.push(word);
+      }
+
+      if (!accepted.length && duplicates.length) {
+        return callback?.({
+          error: 'Selected words were already reported by you for this match.',
+          accepted,
+          duplicates,
+          rejected,
+        });
+      }
+
+      if (!accepted.length) {
+        return callback?.({
+          error: 'Unable to submit selected word reports right now.',
+          accepted,
+          duplicates,
+          rejected,
+        });
+      }
+
+      return callback?.({
+        ok: true,
+        accepted,
+        duplicates,
+        rejected,
+        reportCount: accepted.length,
+      });
     });
 
     socket.on('submit_guess', async ({ guess } = {}, callback) => {
