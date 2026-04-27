@@ -1,6 +1,8 @@
 const roomManager = require('../game/roomManager');
 const { validateGuess, calculateScore } = require('../game/gameLogic');
 const { isValidWord, isValidWordSync, getWordInsight } = require('../game/wordList');
+const AnalyticsUser = require('../models/AnalyticsUser');
+const AnalyticsGame = require('../models/AnalyticsGame');
 const {
   REPORT_REASON_MAX_LENGTH,
   saveWordReport,
@@ -204,8 +206,102 @@ function leaveCurrentRoom(io, socket) {
   socket.data.playerKey = undefined;
 }
 
+function attachDeviceIdToPlayer(roomId, socketId, deviceId) {
+  if (!deviceId) return;
+  const room = roomManager.getRoom(roomId);
+  if (!room) return;
+
+  const player = room.players.find((p) => p.id === socketId);
+  if (!player) return;
+
+  player.deviceId = String(deviceId).slice(0, 120);
+  roomManager.markRoomDirty(room);
+}
+
+async function recordRoundAnalytics(room) {
+  const guessDistribution = [0, 0, 0, 0, 0, 0];
+  let solvedCount = 0;
+  let guessesTaken = 0;
+  const activePlayers = room.players.filter((p) => p.isOnline || p.deviceId);
+
+  // Determine round winner: highest-scoring player who guessed correctly.
+  // In solo mode there is at most one player, so this is always them or null.
+  let winnerId = null;
+  let topScore = -1;
+  for (const player of activePlayers) {
+    const guessCount = Math.max(0, Number(player.guesses?.length || 0));
+    guessesTaken += guessCount;
+
+    if (player.hasGuessedCorrectly) {
+      solvedCount += 1;
+      const index = Math.min(Math.max(guessCount, 1), 6) - 1;
+      guessDistribution[index] += 1;
+
+      // Track winner by highest score; ties go to whichever we see first
+      const playerScore = typeof player.score === 'number' ? player.score : 0;
+      if (playerScore > topScore) {
+        topScore = playerScore;
+        winnerId = player.deviceId || player.publicId || null;
+      }
+    }
+  }
+
+  const playerCount = Math.max(activePlayers.length, 1);
+  const solved = solvedCount > 0;
+
+  await AnalyticsGame.create({
+    roomId: room.id,
+    mode: room.players.length > 1 ? 'multiplayer' : 'solo',
+    durationSeconds: Math.floor((Date.now() - Number(room.roundStartTime || Date.now())) / 1000),
+    winnerId,
+    targetWordLength: room.targetWord?.length || room.settings.wordLength || 5,
+    guessesTaken,
+    guessDistribution,
+    playerCount,
+    solvedCount,
+    solved,
+  });
+
+  const ops = [];
+  for (const player of activePlayers) {
+    if (!player.deviceId) continue;
+    ops.push({
+      updateOne: {
+        filter: { deviceId: player.deviceId },
+        update: {
+          $set: { lastVisit: new Date() },
+          $inc: {
+            gamesPlayed: 1,
+            gamesWon: player.hasGuessedCorrectly ? 1 : 0,
+          },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  if (ops.length) {
+    await AnalyticsUser.bulkWrite(ops, { ordered: false });
+  }
+}
+
 function setupSockets(io) {
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
+    const rawDeviceId = socket.handshake.auth?.deviceId;
+    const deviceId = typeof rawDeviceId === 'string' ? rawDeviceId.trim().slice(0, 120) : '';
+    socket.data.deviceId = deviceId || undefined;
+    if (deviceId) {
+      try {
+        await AnalyticsUser.findOneAndUpdate(
+          { deviceId },
+          { $set: { lastVisit: new Date() } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        ).exec();
+      } catch (e) {
+        console.error("Analytics DB Error", e);
+      }
+    }
+
     socket.on('create_room', ({ playerName, settings, playerKey } = {}, callback) => {
       const safeName = sanitizePlayerName(playerName);
       const safeSettings = settings && typeof settings === 'object' ? settings : {};
@@ -227,6 +323,7 @@ function setupSockets(io) {
       socket.data.roomId = roomId;
       socket.data.playerName = safeName;
       socket.data.playerKey = safePlayerKey;
+      attachDeviceIdToPlayer(roomId, socket.id, socket.data.deviceId);
 
       callback?.(roomManager.getSafeRoomPayload(room));
     });
@@ -264,6 +361,7 @@ function setupSockets(io) {
       socket.data.roomId = normalizedRoomId;
       socket.data.playerName = safeName;
       socket.data.playerKey = safePlayerKey;
+      attachDeviceIdToPlayer(normalizedRoomId, socket.id, socket.data.deviceId);
 
       const safeRoom = roomManager.getSafeRoomPayload(result.room);
       io.to(normalizedRoomId).emit('room_updated', safeRoom);
@@ -309,6 +407,7 @@ function setupSockets(io) {
       socket.data.roomId = safeRoomId;
       socket.data.playerName = safeName;
       socket.data.playerKey = safePlayerKey;
+      attachDeviceIdToPlayer(safeRoomId, socket.id, socket.data.deviceId);
 
       io.to(safeRoomId).emit('room_updated', safeRoom);
       emitPresenceEvent(io, safeRoomId, {
@@ -623,6 +722,10 @@ function endRound(io, roomId, reason = 'unknown') {
   if (!room) return;
 
   clearRoomTimer(room);
+
+  recordRoundAnalytics(room).catch((error) => {
+    console.error('[analytics] failed to record round analytics:', error.message);
+  });
 
   if (room.currentRound >= room.settings.numRounds) {
     room.state = 'GAME_OVER';
