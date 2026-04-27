@@ -9,6 +9,7 @@ import ChatPanel from '../components/ChatPanel';
 import Leaderboard from '../components/Leaderboard';
 import OpponentPanel from '../components/OpponentPanel';
 import { getPlayerBadge } from '../utils/playerIdentity';
+import { Users, Trophy, MessageSquareText, X } from 'lucide-react';
 
 export default function Game() {
   const room = useGameStore((state) => state.room);
@@ -41,6 +42,7 @@ export default function Game() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedReportWord, setSelectedReportWord] = useState('');
   const [reportMessage, setReportMessage] = useState('');
+  const [activeMobilePanel, setActiveMobilePanel] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try {
       const saved = window.localStorage.getItem('wc_sound_enabled');
@@ -156,6 +158,9 @@ export default function Game() {
   useEffect(() => {
     if (roundState === 'IN_ROUND' || roundState === 'GAME_OVER') {
       setIsWordModalOpen(false);
+    }
+    if (roundState === 'ROUND_ENDED' || roundState === 'LOBBY' || roundState === 'GAME_OVER') {
+      setActiveMobilePanel(null);
     }
   }, [roundState]);
 
@@ -399,8 +404,15 @@ export default function Game() {
   return (
     <section className={`game-layout ${isSoloMatch ? 'solo-match' : ''}`}>
       {!isSoloMatch && (
-        <aside className={`panel side-card has-opponents ${opponentCountClass}`}>
-          <h3 className="side-title">Opponents</h3>
+         <div className={`mobile-overlay-backdrop ${activeMobilePanel ? 'show' : ''}`} onClick={() => setActiveMobilePanel(null)}></div>
+      )}
+
+      {!isSoloMatch && (
+        <aside className={`panel side-card has-opponents ${opponentCountClass} ${activeMobilePanel === 'opponents' ? 'mobile-show' : ''}`}>
+          <h3 className="side-title">
+            Opponents
+            <button type="button" className="mobile-close-btn ghost-btn" onClick={() => setActiveMobilePanel(null)}><X size={14} /> Close</button>
+          </h3>
           <div className="side-hud">
             <p className={`timer-pill compact ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
               {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
@@ -428,16 +440,14 @@ export default function Game() {
             </p>
           )}
           <h2>Round {room.currentRound} / {room.settings.numRounds}</h2>
-          {isSoloMatch && (
-            <div className="solo-head-tools">
-              <p className={`timer-pill ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
-                {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
-              </p>
-              <button type="button" className="ghost-btn" onClick={() => setSoundEnabled(prev => !prev)}>
-                SFX: {soundEnabled ? 'On' : 'Off'}
-              </button>
-            </div>
-          )}
+          <div className={`solo-head-tools ${!isSoloMatch ? 'mobile-only-head-tools' : ''}`}>
+            <p className={`timer-pill ${isUrgent ? 'urgent' : ''} ${isCritical ? 'critical' : ''}`}>
+              {roundState === 'IN_ROUND' ? `Time left: ${secondsLeft ?? room.settings.timeLimit}s` : 'Round paused'}
+            </p>
+            <button type="button" className="ghost-btn" onClick={() => setSoundEnabled(prev => !prev)}>
+              SFX: {soundEnabled ? 'On' : 'Off'}
+            </button>
+          </div>
           {roundState === 'ROUND_ENDED' && (
             <div className="status-banner">
               Round finished. Next round starts in a few seconds.
@@ -461,9 +471,34 @@ export default function Game() {
 
       {(showLeaderboard || showChat) && (
         <aside className={`right-stack ${showChat ? '' : 'solo-right'}`}>
-          {showLeaderboard && <Leaderboard />}
-          {showChat && <ChatPanel />}
+          {showLeaderboard && (
+             <div className={`mobile-panel-wrapper ${activeMobilePanel === 'leaderboard' ? 'mobile-show' : ''}`}>
+               <Leaderboard onCloseMobile={() => setActiveMobilePanel(null)} />
+             </div>
+          )}
+          {showChat && (
+             <div className={`mobile-panel-wrapper chat-wrapper ${activeMobilePanel === 'chat' ? 'mobile-show' : ''}`}>
+               <ChatPanel onCloseMobile={() => setActiveMobilePanel(null)} />
+             </div>
+          )}
         </aside>
+      )}
+
+      {!isSoloMatch && (
+        <div className="mobile-game-nav">
+          <button type="button" className={`mobile-nav-btn ${activeMobilePanel === 'opponents' ? 'active' : ''}`} onClick={() => setActiveMobilePanel(p => p === 'opponents' ? null : 'opponents')}>
+            <Users size={20} />
+            <span>Opponents</span>
+          </button>
+          <button type="button" className={`mobile-nav-btn ${activeMobilePanel === 'leaderboard' ? 'active' : ''}`} onClick={() => setActiveMobilePanel(p => p === 'leaderboard' ? null : 'leaderboard')}>
+            <Trophy size={20} />
+            <span>Rank</span>
+          </button>
+          <button type="button" className={`mobile-nav-btn ${activeMobilePanel === 'chat' ? 'active' : ''}`} onClick={() => setActiveMobilePanel(p => p === 'chat' ? null : 'chat')}>
+            <MessageSquareText size={20} />
+            <span>Chat</span>
+          </button>
+        </div>
       )}
 
       {roundState === 'GAME_OVER' && (

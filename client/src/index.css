@@ -3204,3 +3204,135 @@ select.input {
   color: var(--text-muted);
   line-height: 1.5;
 }
+
+/* --- Mobile/Tablet App Layout (≤820px) --- */
+@media (max-width: 820px) {
+  .mobile-game-nav {
+     display: flex;
+     position: fixed;
+     bottom: 0;
+     left: 0;
+     right: 0;
+     background: var(--panel-strong);
+     border-top: 2px solid var(--line);
+     padding: 8px 16px;
+     justify-content: space-around;
+     z-index: 60;
+     padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-nav-btn {
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     gap: 6px;
+     background: transparent;
+     border: none;
+     color: var(--text-muted);
+     font-family: inherit;
+     font-size: 0.72rem;
+     padding: 6px;
+     cursor: pointer;
+  }
+  
+  .mobile-nav-btn.active {
+     color: var(--accent);
+  }
+
+  /* hide sidebars by default and unset their spacing */
+  .has-opponents:not(.mobile-show),
+  .mobile-panel-wrapper:not(.mobile-show) {
+     display: none !important;
+  }
+
+  .right-stack {
+     display: block; 
+     height: auto;
+     gap: 0;
+  }
+
+  /* When activated, show them as fullscreen modals */
+  .has-opponents.mobile-show,
+  .mobile-panel-wrapper.mobile-show {
+     display: flex !important;
+     flex-direction: column;
+     position: fixed;
+     top: 10vh;
+     left: 16px;
+     right: 16px;
+     bottom: 15vh;
+     z-index: 61;
+     background: var(--panel-strong);
+     border: 2px solid var(--line);
+     border-radius: var(--radius-md);
+     box-shadow: var(--shadow-pop);
+     max-height: 75vh !important;
+     height: auto;
+     overflow: hidden; 
+     padding: 0; /* remove padding to let children fill */
+  }
+
+  .has-opponents.mobile-show {
+     padding: 16px;
+  }
+
+  .mobile-overlay-backdrop {
+     display: none;
+  }
+
+  .mobile-overlay-backdrop.show {
+     display: block;
+     position: fixed;
+     inset: 0;
+     z-index: 60;
+     background: rgba(17, 10, 6, 0.75);
+  }
+
+  .mobile-panel-wrapper.mobile-show > .panel.module {
+     height: 100%;
+     border: none; 
+     border-radius: 0;
+     margin: 0;
+     display: flex;
+     flex-direction: column;
+  }
+  
+  .mobile-close-btn {
+     display: inline-flex;
+     align-items: center;
+     padding: 4px 8px;
+  }
+  
+  .side-title {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     font-size: 1.1rem;
+     margin-bottom: 12px;
+  }
+
+  /* Ensure body scroll padding */
+  body.game-no-scroll .page-wrap {
+     padding-bottom: 120px;
+     min-height: 100vh;
+  }
+
+  .keyboard {
+     margin-bottom: 74px;
+     position: relative;
+     z-index: 10;
+  }
+
+  /* hide duplicated side hud (timer) in opponent panel since we moved it to banner */
+  .side-hud {
+     display: none;
+  }
+}
+
+/* Hide mobile-specific components on PC */
+@media (min-width: 821px) {
+  .mobile-game-nav, .mobile-overlay-backdrop, .mobile-close-btn, .mobile-only-head-tools {
+    display: none;
+  }
+}
+

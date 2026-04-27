@@ -30,10 +30,11 @@ function securityConfigured() {
 }
 
 function clearCookie(res) {
+  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie(TOKEN_COOKIE, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/api/admin',
   });
 }
@@ -48,10 +49,11 @@ function signToken() {
 }
 
 function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/api/admin',
     maxAge: 8 * 60 * 60 * 1000,
   };

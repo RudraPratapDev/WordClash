@@ -1,9 +1,9 @@
 import { memo } from 'react';
 import useGameStore from '../store/useGameStore';
-import { Trophy } from 'lucide-react';
+import { Trophy, X } from 'lucide-react';
 import { getPlayerBadge } from '../utils/playerIdentity';
 
-function Leaderboard() {
+function Leaderboard({ onCloseMobile }) {
   const room = useGameStore((state) => state.room);
   
   if (!room) return null;
@@ -12,8 +12,13 @@ function Leaderboard() {
 
   return (
     <div className="panel module">
-      <div className="module-head" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Trophy size={18} /> Leaderboard
+      <div className="module-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Trophy size={18} /> Leaderboard</span>
+        {onCloseMobile && (
+          <button type="button" className="mobile-close-btn ghost-btn" onClick={onCloseMobile}>
+            <X size={14} /> Close
+          </button>
+        )}
       </div>
       <div className="module-body" style={{ padding: 0 }}>
         <ul style={{ listStyle: 'none' }}>
