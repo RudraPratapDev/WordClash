@@ -1,3 +1,4 @@
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
@@ -10,6 +11,8 @@ import useGameStore from './store/useGameStore';
 import ToastTray from './components/ToastTray';
 import SessionPrompts from './components/SessionPrompts';
 import './index.css';
+
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
 function App() {
   const { isConnected } = useSocket();
@@ -44,6 +47,11 @@ function App() {
             <Route path="/room/:roomId" element={<Lobby />} />
             <Route path="/game" element={<Game />} />
             <Route path="/about-developer" element={<AboutDeveloper />} />
+            <Route path="/admin/analytics" element={
+              <Suspense fallback={<div>Loading Insights...</div>}>
+                <AdminDashboard />
+              </Suspense>
+            } />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

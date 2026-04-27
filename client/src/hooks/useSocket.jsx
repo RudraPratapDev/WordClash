@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { v4 as uuidv4 } from 'uuid';
 import useGameStore from '../store/useGameStore';
 import { clearSession, getSession } from '../utils/session';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
+const getDeviceId = () => {
+  let id = localStorage.getItem('deviceId');
+  if (!id) {
+    id = uuidv4();
+    localStorage.setItem('deviceId', id);
+  }
+  return id;
+};
+
 export const socket = io(SOCKET_URL, {
   autoConnect: false,
+  auth: { deviceId: getDeviceId() }
 });
 
 export function useSocket() {
